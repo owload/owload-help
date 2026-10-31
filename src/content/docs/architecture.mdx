@@ -173,7 +173,7 @@ This folder turns a stream of encrypted bytes into folders and files. `DriveClie
 | [`fs-operation.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-operation.ts) | The eight operations of the log, and how each is written and hashed |
 | [`fs-state.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-state.ts) | Replays operations into a tree, and checks that each is allowed: names, parents, conflicts |
 | [`fs-tree-node.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-tree-node.ts) | One folder or file of the tree |
-| [`operation-service.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/operation-service.ts) | Saves an operation and confirms that it is in the log, retrying if another writer got in first |
+| [`operation-service.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/operation-service.ts) | Runs reads and writes of the log one at a time, confirms that an operation is in the log, and writes it again if another writer got in first |
 | `ops-repository.ts`, `serializing-`, `splitting-`, `encrypting-`, `hash-validating-ops-repository.ts` | The pipeline below |
 | `ops-log-analysis.ts` | Finds a file's version history in the log |
 | `drive-action-log.ts` | The type of an entry of the server's audit log |
@@ -264,7 +264,7 @@ Each module is one resource:
 | Module | Path | What it does |
 |---|---|---|
 | `drives.py` | `/drives` | Create, list, rename and delete drives |
-| `ops.py` | `/ops` | Append to the log and read it from a position |
+| `ops.py` | `/ops` | Read the log from a position, and append to it. An append states the length it expects, so that writers cannot overlap |
 | `sessions.py` | `/sessions` | Reserve room for an upload and close the session |
 | `data.py` | `/data` | Write, read, list and free encrypted bytes |
 | `access.py` | `/drives/<id>/access` | Visibility, people, roles, invitations, the public link |

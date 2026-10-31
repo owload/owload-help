@@ -30,7 +30,7 @@ The routes under `/public/<token>` need no token.
 | `/drives/{id}/access-request` | Ask for access to a drive you are not on. |
 | `/drives/{id}/storage-targets` | A drive's storages: add, make main, remove, test connection. |
 | `/drives/restore` | Find and restore drives from a bucket. |
-| `/ops/{driveId}` | Read and append to the encrypted operation log. |
+| `/ops/{driveId}` | Read the encrypted operation log, and append to it at a stated position. |
 | `/sessions` | Reserve room for an upload, and finish it. |
 | `/data` | Write, read and free ranges of the drive's data. |
 | `/s3-presets` | List the storages the operator offers; test one. |
