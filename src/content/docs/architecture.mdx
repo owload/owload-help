@@ -154,13 +154,14 @@ The folders follow the areas of the screen: `files-area` (the grid and the list 
 
 | File | What it contains |
 |---|---|
-| [`enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts) | Key derivation (`generateKey`, `deriveStreamKey`), the encrypting stream (`createEncryptingStream`) and the `AesEncryptor` used for the log |
+| [`enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts) | Key derivation (`generateKey`, `deriveStreamKey`, `deriveFileKey`) and the encrypting stream of a file (`createEncryptingStream`) |
+| [`file-checksum.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/file-checksum.ts) | The checksum of a file, chained over its blocks, with one block in memory |
 | [`sealed-cache.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/sealed-cache.ts) | Encryption of a cached value that is rewritten from time to time, with a fresh random counter each time |
 | [`parallel-blocks.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/parallel-blocks.ts) | Reads a range as several blocks at once and hands them out in order, with bounded memory |
 | [`stream-utils.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/stream-utils.ts) | Web Streams helpers: padding and skipping bytes so that encryption can start at any position |
 | [`constants.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/constants.ts) | The block size (1 MiB), how many blocks travel at once, and timeouts |
 
-All the encryption is done by the browser's own `crypto.subtle`. Owload's code decides which key and which position to use, and it does not implement a cipher.
+All the encryption is done by the browser's own `crypto.subtle`. Owload's code decides which key to use, and it does not implement a cipher.
 
 ### engine/service: the log and the file tree
 
@@ -174,7 +175,7 @@ This folder turns a stream of encrypted bytes into folders and files. `DriveClie
 | [`fs-state.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-state.ts) | Replays operations into a tree, and checks that each is allowed: names, parents, conflicts |
 | [`fs-tree-node.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-tree-node.ts) | One folder or file of the tree |
 | [`operation-service.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/operation-service.ts) | Runs reads and writes of the log one at a time, confirms that an operation is in the log, and writes it again if another writer got in first |
-| `ops-repository.ts`, `serializing-`, `splitting-`, `encrypting-`, `hash-validating-ops-repository.ts` | The pipeline below |
+| `ops-repository.ts`, `serializing-`, `framed-`, `hash-validating-ops-repository.ts` | The pipeline below |
 | `ops-log-analysis.ts` | Finds a file's version history in the log |
 | `drive-action-log.ts` | The type of an entry of the server's audit log |
 
@@ -184,12 +185,11 @@ The log passes through a chain of small classes, each with one job:
  OperationService             retries until the operation is in the log
    HashValidatingOpsRepository   links each operation to the previous one, checks the chain
      SerializingOpsRepository      operation ⇄ text
-       SplittingOpsRepository        a stream of bytes ⇄ single operations
-         EncryptingOpsRepository       plaintext ⇄ ciphertext, at the right position
-           FilesystemBackend             bytes to and from the API
+       FramedOpsRepository           one operation ⇄ one encrypted frame
+         FilesystemBackend             bytes to and from the API
 ```
 
-`EncryptingOpsRepository` is the only class here that touches a key, and `FilesystemBackend` below it sees only ciphertext.
+`FramedOpsRepository` is the only class here that touches a key, and `FilesystemBackend` below it sees only ciphertext.
 
 ### engine/backend: how bytes travel
 
@@ -282,6 +282,7 @@ Each module is one resource:
 | [`storage.py`](https://github.com/owload/owload-backend/blob/main/app/services/storage.py) | `BlockStorage`: blocks, writing to every storage at once, undoing a failed write, recovery copies |
 | `storage_targets.py` | Which storages a drive has, as ready-to-use connections |
 | `storage_errors.py` | Turns a storage's error into a fixed reason, with no names or raw text |
+| [`storage_address.py`](https://github.com/owload/owload-backend/blob/main/app/services/storage_address.py) | Keeps the storages that users name out of the server's own network, and limits connection tests |
 | [`access.py`](https://github.com/owload/owload-backend/blob/main/app/services/access.py) | Visibility, roles, the public link and its rate limit |
 | `access_summary.py` | Who is on a drive and who read it, for the drive's card |
 | `quota.py`, `stored_bytes.py` | The limits of a plan and of a drive, and counting what is stored |
@@ -336,12 +337,12 @@ The server therefore **cannot list your files**. It can only store, return and m
 
 ### What the log looks like
 
-After decryption, each entry is a short line of text between two separator bytes:
+In the log, each entry is a frame: its length, a random nonce, the ciphertext and an authentication tag. After decryption, it is a short line of text:
 
 ```text
-"xK3p9A==","kQ2bT7vLmZ4e",5,["/photos/beach.jpg",1048576,2097152,"REPLACE"]
- └ random  └ hash of the  │  └ what it says: path, where in the data area,
-           previous entry │    how many bytes, what to do on a name conflict
+"xK3p9A==","kQ2bT7vLmZ4e",5,["/photos/beach.jpg",1048576,2097152,"REPLACE","p7Rw…"]
+ └ random  └ hash of the  │  └ what it says: path, where in the data area, how many
+           previous entry │    bytes, what to do on a name conflict, the file's salt
                           └ the type: 5 is START_UPLOAD
 ```
 
@@ -351,8 +352,8 @@ After decryption, each entry is a short line of text between two separator bytes
 | `RM` | Files or folders deleted |
 | `RENAME` | One object renamed or moved |
 | `MV`, `CP` | Several objects moved or copied |
-| `START_UPLOAD` | A file's path, and the range reserved for it |
-| `FINISH_UPLOAD` | The upload is complete, with the file's SHA-256 checksum |
+| `START_UPLOAD` | A file's path, the range reserved for it, and the salt of its key |
+| `FINISH_UPLOAD` | The upload is complete, with the file's checksum |
 | `DESCRIPTION` | The drive's description |
 
 The current state of a drive is the result of replaying all of this in order, in `FsState`. A file's identity is the hash of the operation that created it. Version history needs no separate store, because the log already has every version. To open a drive quickly, the client keeps an encrypted snapshot of the tree and replays only what is new.
@@ -379,22 +380,26 @@ A position in the data area maps directly to a block number and an offset in it,
  master key
       │  HKDF-SHA-256, with the counter nonce and a label for each purpose
       ├── K_ops            the operation log
-      ├── K_data           file contents
       ├── K_cacheFsState   ┐
       ├── K_cacheActLog    │
       ├── K_cacheOpLog     │ the browser's local caches
       ├── K_cacheKeys      │
       └── K_cacheMedia     ┘
+
+ master key + a random salt for each upload
+      │  HKDF-SHA-256
+      └── K_file           the contents of one file
 ```
 
 1. The **password** never leaves the device. It is turned into a **master key** with **PBKDF2-SHA-512** (100,000 iterations) and a random salt, the *key nonce*, made on your device and stored with the drive. This is `generateKey` in `enc.ts`.
-2. From the master key, **independent keys** are derived with **HKDF-SHA-256**, one for each purpose in the diagram. A key serves one purpose only. This is `deriveStreamKey`, called from `drive-client-factory.ts`.
-3. Data is encrypted with **AES-256 in counter mode**. The counter comes from the **position** of the data in the drive, and the second random value, the *counter nonce*, keeps two drives from sharing a keystream. A copy of a drive under a new id is **refused** for exactly that reason. Counter mode lets the client encrypt and decrypt any range on its own, which is what makes large files and video seeking work.
-4. Every file has a **SHA-256 checksum** of the original, stored in the log and **verified after every full download**. The log is a **hash chain**: each entry carries the fingerprint of the previous one.
+2. From the master key, **independent keys** are derived with **HKDF-SHA-256**, one for each purpose in the diagram. A key serves one purpose only. This is `deriveStreamKey`, called from `drive-client-factory.ts`, and `deriveFileKey`, called from `drive-client.ts`.
+3. The **log** is encrypted with **AES-256-GCM**. Each entry has a random nonce of its own, and the id of the drive is authenticated with it, so a changed entry does not open and an entry does not open in another drive. The log is also a **hash chain**: each entry carries the fingerprint of the previous one, which protects their order.
+4. **Files** are encrypted with **AES-256 in counter mode**. Each file has a key of its own, made from a random salt kept in the log, and the counter runs from the start of the file. Where the server stores the bytes has no part in it, so nothing the server reports can make two files share a keystream. Counter mode lets the client decrypt any range on its own, which is what makes large files and video seeking work.
+5. Every file has a **checksum** stored in the log and **verified after every full download**. It is a chain of SHA-256 over the blocks of the file, so that computing it takes one block of memory, however large the file is.
 
 The server has no way to check a drive's password, because it never sees one. A wrong password produces a log that does not decode, and the client tells you so.
 
-See [How encryption works](../security/#how-encryption-works) for the plain-language version.
+See [How encryption works](../security/#how-encryption-works) for the plain-language version, and [Encryption format](../encryption/) for the exact format, with a worked example.
 
 ## What happens, step by step
 
@@ -408,13 +413,13 @@ See [How encryption works](../security/#how-encryption-works) for the plain-lang
 
 1. The tree says where the file's bytes are in the data area.
 2. The client asks for **a range of blocks**, several at once, and the API streams them from the main storage.
-3. The client decrypts them on the way in. For a full download it computes the SHA-256 and compares it with the one in the log.
+3. The client decrypts them on the way in, with the key of the file. For a full download it computes the checksum and compares it with the one in the log.
 
 ### Uploading a file
 
 1. The client asks the API to **reserve** room (`POST /sessions`). The API checks your plan and the drive's limit, and answers with a range.
-2. The client appends a `START_UPLOAD` operation to the log, and computes the file's SHA-256.
-3. The client encrypts the file at that position and sends the **encrypted blocks**, several at once. The API writes each to **every** storage of the drive.
+2. The client makes a random salt, and appends a `START_UPLOAD` operation with it to the log.
+3. The client encrypts the file with its key, computes the checksum as it goes, and sends the **encrypted blocks**, several at once. The API writes each to **every** storage of the drive.
 4. The client appends `FINISH_UPLOAD`, with the checksum, and closes the session.
 
 <Figure name="open-and-upload-sequence" />
@@ -429,7 +434,7 @@ See [How encryption works](../security/#how-encryption-works) for the plain-lang
 |---|---|---|
 | Client | React 19, TypeScript, Vite, Tailwind, shadcn/ui | The web application |
 | Client state | Zustand, React Router | State and navigation |
-| Cryptography | The browser's **Web Crypto API**: AES-256-CTR, PBKDF2-SHA-512, HKDF-SHA-256, SHA-256 | Encryption, key derivation, checksums. The cipher is the browser's own, not a home-made one |
+| Cryptography | The browser's **Web Crypto API**: AES-256-GCM, AES-256-CTR, PBKDF2-SHA-512, HKDF-SHA-256, SHA-256 | Encryption, key derivation, checksums. The cipher is the browser's own, not a home-made one |
 | Streaming | Web Streams, Service Worker, Cache API | Large files and video, with bounded memory |
 | Sign-in | **Keycloak**, OpenID Connect with PKCE | Accounts, passwords, Google sign-in |
 | API | Python 3.12, **FastAPI**, SQLAlchemy (async), Alembic, Pydantic | The HTTP service and its database migrations |
@@ -456,17 +461,19 @@ Each property below comes from how the system is built, not from a promise. The 
 |---|---|---|
 | **The server cannot read your files** | The keys are made on your device and never sent. The server has no operation that takes a password or a key, and the structure of your files is inside an encrypted log. | `engine/core/enc.ts`; the routes of `app/api/routes` |
 | **The server cannot list your files** | Its data model has no files: only an opaque log and a range of bytes. | `app/db/models.py`, `Drive` |
-| **Each key has one job** | Separate keys come from HKDF, one per purpose, so that the log, the file data and each cache never share a key. | `engine/service/drive-client-factory.ts` |
-| **Cryptography stays in one place** | Only `engine/core` encrypts, and it uses the browser's own implementation. | `crypto.subtle` in `engine/core` |
+| **Each key has one job** | Separate keys come from HKDF, one per purpose, so that the log, each file and each cache never share a key. | `engine/service/drive-client-factory.ts` |
+| **The server cannot pick a keystream** | Random values made in the browser choose the keys and nonces, and a position that the server reports is only an address. | `engine/service/framed-ops-repository.ts`; `uploadFile` in `drive-client.ts` |
+| **Cryptography stays in small places** | Encryption uses the browser's own implementation, in `engine/core` and in the frames of the log. | `crypto.subtle` in `engine/core`; `framed-ops-repository.ts` |
 | **A stolen database is not a leak** | It holds profiles, access lists and **ciphertext**. The S3 passwords in it are encrypted with a separate key that is not in the database. | `app/services/secrets.py` |
 | **A stolen bucket is not a leak** | It holds encrypted blocks, an encrypted log and a small record with the drive's title and ids. Without the password, your files are noise. | `app/services/storage.py` |
-| **Damage and tampering are noticed** | A file's checksum is checked on a full download, and the log is chained, so a change in the middle breaks everything after it. | `getFileData` in `drive-client.ts`; `hash-validating-ops-repository.ts` |
+| **Damage and tampering are noticed** | A file's checksum is checked on a full download, and each entry of the log is authenticated. | `getFileData` in `drive-client.ts`; `framed-ops-repository.ts` |
 | **One compromised part does not give the rest** | The API, the database, the storage and the sign-in service are separate, and none of them holds the keys. | [The parts](#the-parts) |
 | **Roles are checked on every request** | Every route that touches a drive goes through one check of the user's role. | `get_drive_and_role` in `app/api/deps.py` |
 | **Only the identity provider's signature counts** | Tokens are verified against the realm's public keys, and shared-secret and unsigned tokens are refused. | `app/core/security.py` |
 | **Extensions do not get your keys** | An extension receives only the bytes of the file it opens. | `components/editor-host` |
 | **Little to steal** | The server keeps only what it must: sizes, titles, access, and when a drive was used. It keeps **no file names**, no contents, no passwords. | `app/db/models.py` |
 | **Nothing is revealed by probing** | A drive you may not see answers like one that does not exist; wrong, old and made-up public links answer alike; public reads are rate-limited and send no-store, no-referrer and no-index headers. | `app/api/deps.py`; `app/api/routes/public.py` |
+| **Storages of users stay outside the server's network** | The address of every connection to a storage a user named is checked as it is made, also after a redirect, and only HTTPS is accepted. A refused address answers like one that cannot be reached. | `app/services/storage_address.py` |
 | **Secrets stay out of the images** | The images are checked for stray secrets, the API runs as an ordinary user, and error messages never name your bucket or contain the storage's own text. | `.github/workflows/docker.yml`; `app/services/storage_errors.py` |
 | **You can verify it** | The code is public, the build is public, and you can run the whole service yourself. | [Self-hosting](../self-hosting/) |
 
@@ -478,7 +485,7 @@ The one place the design relies on trust is the code your browser receives from 
 
 ### Read the code in this order
 
-1. [`engine/core/enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts): how a password becomes a key, and how bytes are encrypted.
+1. [`engine/core/enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts) and [`engine/service/framed-ops-repository.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/framed-ops-repository.ts): how a password becomes keys, and how files and the log are encrypted.
 2. [`engine/service/drive-client-factory.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client-factory.ts): how a drive is assembled. It is short, and it shows the whole client side on one screen.
 3. [`engine/service/fs-operation.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-operation.ts), then [`fs-state.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-state.ts): what the log contains, and how it becomes a tree.
 4. [`engine/service/drive-client.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client.ts): `refresh`, `uploadFile` and `getFileData` show the full flows.
@@ -489,7 +496,7 @@ The one place the design relies on trust is the code your browser receives from 
 
 | You want to understand | Look at |
 |---|---|
-| How a password becomes keys | `generateKey`, `deriveStreamKey` in `enc.ts`; `drive-client-factory.ts` |
+| How a password becomes keys | `generateKey`, `deriveStreamKey`, `deriveFileKey` in `enc.ts`; `drive-client-factory.ts` |
 | What happens to a file on upload | `uploadFile` in `drive-client.ts`; `hooks/use-upload.ts`; `app/api/routes/data.py` |
 | How a folder or a rename is stored | `fs-operation.ts`; `fs-state.ts` |
 | How a screen reaches a drive | `stores/files-slice.ts`; `hooks/use-files-store-ops.ts` |

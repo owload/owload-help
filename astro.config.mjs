@@ -33,7 +33,7 @@ export default defineConfig({
       sidebar: [
         { label: "Get started", items: ["index", "get-started", "self-hosting"] },
         { label: "Using Owload", items: ["using-drives", "sharing", "storage", "reliability", "account"] },
-        { label: "Security and privacy", items: ["security", "architecture", "threat-model"] },
+        { label: "Security and privacy", items: ["security", "encryption", "architecture", "threat-model"] },
         { label: "Reference", items: ["reference", "help"] },
       ],
       pagination: true,

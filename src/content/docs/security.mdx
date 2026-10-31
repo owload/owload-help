@@ -61,7 +61,7 @@ If you think you found a security problem, write to [info@owload.com](mailto:inf
 
 ## How encryption works
 
-Owload is built so that the server **cannot** read your files, rather than promising that it will not. Everything below happens in your browser, in code you can [read](https://github.com/owload).
+Owload is built so that the server **cannot** read your files, rather than promising that it will not. Everything below happens in your browser, in code you can [read](https://github.com/owload). The exact format, down to each byte, is in [Encryption format](../encryption/).
 
 ### What is encrypted
 
@@ -75,8 +75,8 @@ Owload is built so that the server **cannot** read your files, rather than promi
 
 1. You type the drive's **password**. It never leaves your device.
 2. A **master key** is made from the password and a random value stored with the drive (a salt), using **PBKDF2-SHA-512 with 100,000 iterations**. It is slow on purpose, to make guessing passwords expensive.
-3. From the master key, **independent keys** are derived with **HKDF-SHA-256**: one for the drive's log, one for file data, and separate ones for the browser's caches. A key is used for one purpose only.
-4. Data is encrypted with **AES-256 in counter mode (CTR)**. The counter comes from the position of the data in the drive, and a second random value stored with the drive keeps two drives from ever sharing a keystream.
+3. From the master key, **independent keys** are derived with **HKDF-SHA-256**: one for the drive's log, one for each file, and separate ones for the browser's caches. A key is used for one purpose only.
+4. The drive's log is encrypted with **AES-256-GCM**, each entry on its own with a random nonce, so an entry that was changed does not open. Files are encrypted with **AES-256 in counter mode (CTR)**, which lets a video start from any place. The key of a file comes from a random value made in your browser for that upload.
 
 The password, the master key and the derived keys **never leave your device**. Owload's servers do not receive them and cannot compute them.
 
@@ -86,7 +86,7 @@ The password, the master key and the derived keys **never leave your device**. O
 
 Encryption hides the data; it does not by itself show that someone changed it. Owload adds two checks:
 
-- **Every file has a checksum** (SHA-256 of the file as you uploaded it), stored in the drive's log. After a full download the file is decrypted and **checked against it**. If anything was altered or damaged in storage, you get an error, not a silently broken file.
+- **Every file has a checksum** (a chain of SHA-256 over the blocks of the file as you uploaded it), stored in the drive's log. After a full download the file is decrypted and **checked against it**. If anything was altered or damaged in storage, you get an error, not a silently broken file.
 - **The drive's log is a chain:** each entry carries the fingerprint of the one before it. Altering an entry in the middle breaks everything after it, and the client notices.
 
 What these checks do **not** cover is described honestly in [Threat model](../threat-model/).

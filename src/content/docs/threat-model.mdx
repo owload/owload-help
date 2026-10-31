@@ -42,7 +42,7 @@ A threat model says what is being protected, from whom, and how well. This one i
 | **Stolen storage bucket** | Encrypted blocks and an encrypted log; the drive's title, owner id and creation date are readable | They need the drive password | An offline guess at a **weak** password |
 | **Curious or compromised operator** | The same as a stolen database, live | The server has no keys and cannot compute them | **Delivering altered code**: see below |
 | **Dishonest storage provider** | Encrypted bytes; can delete or damage them | Checksums detect damage; [copies in other storages](../reliability/) survive a loss | A provider can still delete your data |
-| **Altered data in storage** | Nothing readable | A file is checked against its checksum on download; the log is hash-chained | See "What the checks do not cover" |
+| **Altered data in storage** | Nothing readable | A file is checked against its checksum on download; each entry of the log is authenticated, and the log is hash-chained | See "What the checks do not cover" |
 | **Probing for drives** | Nothing: "not found" looks the same as "not allowed" | Uniform answers; long random public links; rate limits | The page for asking access shows that a drive exists and its name, to a signed-in person |
 | **Guessing a public link** | Nothing | The link is long and random, and carries no password | Anyone who has link **and** password can read |
 | **Stolen or leaked access key to your own S3** | Your encrypted bucket: can delete or damage it | Keys are encrypted at rest on the server; use a key limited to one bucket | The key can still harm availability |
@@ -88,7 +88,7 @@ A public drive is read by anyone with its **link and password**. The link on its
 
 ### What the checks do not cover
 
-- **There is no signature on each change.** The drive's log is chained, so tampering in the middle is detected, but a server could, in theory, **drop the most recent entries** or **replay** an older state of the log without the client noticing.
+- **There is no signature on each change.** Each entry of the log is authenticated and the log is chained, so a changed entry is detected, but a server could, in theory, **drop the most recent entries** or **replay** an older state of the log without the client noticing.
 - **Video streaming is not checksummed.** A file is checked after a full download; a video played in pieces is not.
 - **Authorship is not proven.** The log records who made a change from the server's side, but changes are not signed by their author.
 

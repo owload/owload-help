@@ -81,7 +81,7 @@ Using your own S3 does not change who can read your files. They are encrypted in
 | **European providers** | Hetzner, OVHcloud, Scaleway | Keeping data in Europe, with a European company |
 | **Your own server** | Garage, SeaweedFS, Ceph | Keeping the data on hardware you control |
 
-These are examples, not a list of tested services. Owload's server has to be able to reach the storage, so S3 on your own server needs a public address, unless you [self-host](../self-hosting/) all of Owload next to it.
+These are examples, not a list of tested services. Owload's server has to be able to reach the storage, so S3 on your own server needs a public address and HTTPS, unless you [self-host](../self-hosting/) all of Owload next to it.
 
 <Aside type="caution" title="Not every S3 service works yet">
 Owload puts the bucket's name in the path of the address (`endpoint/bucket`). Services that accept the name only at the start of the host name (`bucket.endpoint`) do not work with Owload yet. Among them are **Alibaba Cloud OSS**, **Huawei Cloud OBS** and **Tencent Cloud COS** buckets created since 2024.
@@ -104,7 +104,7 @@ To write to your bucket, Owload's server needs the access key. It is kept encryp
 - An **S3-compatible storage**: see [Which storage you can use](#which-storage-you-can-use).
 - A **bucket** used only for Owload.
 - Its **address (endpoint URL), region, bucket name, access key and secret key.**
-- The storage has to be **reachable from the internet**: Owload's server connects to it, not your browser. A bucket inside a private network will not work (for that, [self-host](../self-hosting/)).
+- The storage has to be **reachable from the internet over HTTPS**: Owload's server connects to it, not your browser. The web version refuses addresses in private networks and plain HTTP (to use those, [self-host](../self-hosting/)).
 
 #### Set it up
 
@@ -237,7 +237,7 @@ The list tells you why a drive is greyed out:
 - **Damaged.** Something the drive needs is missing in the bucket (for example a gap in its history). A damaged drive is not restored, because a silent patch would corrupt the files.
 
 <Aside type="note" title="Why there is no “restore as a copy”">
-A copy of a drive under a new id would be encrypted with the same keys and counters as the original. Two different versions of the same drive would then share a keystream, which weakens the encryption. Use a secondary storage to copy a drive instead.
+A copy of a drive under a new id would share all the keys of the original, and its log would not open, because each entry is bound to the id of its drive. Use a secondary storage to copy a drive instead.
 </Aside>
 
 ### Privacy of the connection

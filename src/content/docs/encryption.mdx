@@ -1,0 +1,360 @@
+---
+title: Encryption format
+description: "Exactly how Owload encrypts a drive: the keys, what an operation looks like and what its fields mean, how a frame of the log is built, and how file data and its checksum work, with a worked example."
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page is the exact specification of how a drive is stored: every key, every field and every byte. With it and a drive's password, you could read a drive with your own code, without Owload. For the plain-language version, see [How encryption works](../security/#how-encryption-works). For where this code sits, see [Architecture and technologies](../architecture/).
+
+The last section is a [worked example](#worked-example) with real values, so that you can check your understanding, or your own implementation, against them. The same values are checked by the [tests of the client](https://github.com/owload/owload-frontend/blob/main/src/engine/core/test/encryption-vectors.test.ts).
+
+## A drive at a glance
+
+A drive is two byte strings, and the server can read neither of them.
+
+| Part | What it holds | Where it is stored | How it is encrypted |
+|---|---|---|---|
+| **Operation log** | Every change: folders, file names, sizes, checksums | In the database, with a copy in each storage | AES-256-GCM, each entry on its own |
+| **Data area** | The contents of all files, one after another | In the storages, in blocks of 1 MiB | AES-256-CTR, a key for each file |
+
+Everything a client knows about a drive comes from replaying the log: there is no list of files anywhere else. The log says where each file's bytes are in the data area, and which salt makes its key.
+
+All the cryptography runs in the browser, through the [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto). Binary values inside operations are written in Base64.
+
+## Keys
+
+```text
+ password + keyNonce
+    │  PBKDF2-SHA-512, 100,000 iterations, 256 bits
+    ▼
+ K_master
+    ├─ HKDF-SHA-256, salt = counterNonce, info = a label
+    │     ├─ K_ops                 the log
+    │     └─ five cache keys       the browser's local caches
+    │
+    └─ HKDF-SHA-256, salt = fileSalt, info = "owload-file-v3"
+          └─ K_file                the contents of one file
+```
+
+### Values stored with a drive
+
+Both are 16 random bytes, made in the browser when the drive is created and stored on the server in Base64. They are not secret: a key cannot be made from them without the password.
+
+| Value | Used as |
+|---|---|
+| `keyNonce` | The salt of PBKDF2. Two drives with one password get different keys |
+| `counterNonce` | The salt of HKDF for the keys of the log and of the caches |
+
+### The master key
+
+`K_master` is 256 bits of PBKDF2 with HMAC-SHA-512, 100,000 iterations, with the UTF-8 bytes of the password as input and `keyNonce` as salt. It is never sent anywhere. While a drive is open it stays in the browser's local storage, and closing the drive removes it.
+
+### Keys derived from it
+
+Each is 256 bits of HKDF with SHA-256, with `K_master` as the input key material.
+
+| Key | Salt | `info` label | Algorithm | Used for |
+|---|---|---|---|---|
+| `K_ops` | `counterNonce` | `owload-ops-v3` | AES-GCM | The operation log |
+| `K_file` | `fileSalt` | `owload-file-v3` | AES-CTR | The contents of one file |
+| Cache keys | `counterNonce` | `owload-cache-fsstate-v2`, `-actlog-v2`, `-oplog-v2`, `-keys-v2`, `-media-v2` | AES-CTR | [Local caches](#local-caches) |
+
+A key does one job, and different jobs never share one.
+
+## What an operation looks like
+
+An operation is one change to a drive. In plaintext it is one line of UTF-8 text with four comma-separated parts. Each part is valid JSON, so the whole line parses as a JSON array once it is wrapped in `[` and `]`:
+
+```text
+"AAECAwQ=","Jj/hl6oAUx1H",0,["/photos/2026"]
+    │            │        │  └─ the attributes of this type of operation
+    │            │        └─ the type
+    │            └─ the fingerprint of the previous operation
+    └─ a random value
+```
+
+| Part | Format | Meaning |
+|---|---|---|
+| `randomStr` | 5 random bytes in Base64 | Makes two operations that mean the same thing different, so their fingerprints differ |
+| `previousOperationHash` | A fingerprint, 12 characters | Links this operation to the one before it. Empty for the first operation of a drive |
+| `operationType` | A number | Which operation this is |
+| Attributes | A JSON array | Depends on the type |
+
+### Types of operation
+
+| Type | Number | Attributes |
+|---|---|---|
+| `MK_DIR` | 0 | `path` |
+| `RM` | 1 | `basePath`, `fileNames[]` |
+| `MV` | 2 | `pathSrc`, `fileNames[]`, `pathDest`, `mode`, `destFileNames[]` or null |
+| `CP` | 3 | `pathSrc`, `fileNames[]`, `pathDest`, `mode`, `destFileNames[]` or null |
+| `RENAME` | 4 | `pathSrc`, `pathDest` |
+| `START_UPLOAD` | 5 | `path`, `byteOffset`, `byteLength`, `mode`, `fileSalt` |
+| `FINISH_UPLOAD` | 6 | `uploadStartOperationHash`, `fileContentHash` |
+| `DESCRIPTION` | 7 | `description` |
+
+`mode` says what to do when a name is taken:
+
+| Mode | Meaning |
+|---|---|
+| `REPLACE` | The new object takes the place of the old one |
+| `RENAME` | The new object gets a free name, such as `report (1).txt` |
+| `FIXED` | The names are given in `destFileNames` |
+
+Uploads use `REPLACE` and `RENAME`. A name is at most 100 characters, and a description at most 1,024.
+
+### Examples
+
+Creating a folder, deleting two files and renaming one:
+
+```text
+"mQ1xZg8=","Jj/hl6oAUx1H",0,["/photos/2026"]
+"7vKp2Hk=","Xn4wT0pQe2sL",1,["/photos",["a.jpg","b.jpg"]]
+"Yt3dPw4=","d9LqHs7VbC1u",4,["/photos/c.jpg","/photos/beach.jpg"]
+```
+
+Uploading a file takes two operations. The first reserves its place and carries its salt, and the second closes the upload and carries its checksum:
+
+```text
+"kP0sRg0=","pR2mYc8KaZ5f",5,["/photos/beach.jpg",1048576,2097152,"REPLACE","ICEiIyQl…Pj8="]
+"uB8nEw0=","tF6hNq3JxU9g",6,["tF6hNq3JxU9g","wNZfBVSf3L5E…t4w="]
+```
+
+The first attribute of `FINISH_UPLOAD` is the fingerprint of its `START_UPLOAD`, which ties the two together even when other operations come between them.
+
+### The fingerprint and the chain
+
+The fingerprint of an operation is the first 9 bytes of the SHA-256 of its whole text, in Base64, which gives 12 characters:
+
+```text
+fingerprint = Base64( SHA-256( operation text )[0..8] )
+```
+
+Since `previousOperationHash` is part of the text, each fingerprint depends on everything before it. This is the **hash chain**. When a client reads the log, it follows the chain, and an operation that names the wrong predecessor is rejected.
+
+### Identifiers
+
+An object in the tree has no id of its own making:
+
+- A file or a folder is identified by the fingerprint of the operation that created it.
+- A copy of an object gets `SHA-256(source id + "-" + fingerprint of the CP operation)` in Base64, so that a copy and its source can be told apart.
+
+### Replaying the log
+
+The state of a drive is what you get by applying the operations in order, from an empty root folder. Each is checked first: the parent folder has to exist, a name has to be valid and free, and an operation cannot move a folder into itself. An operation that fails is marked rejected and skipped, and the ones after it still apply.
+
+To open a drive quickly, a client keeps an encrypted snapshot of the tree and replays only what came after it.
+
+## How an operation is encrypted
+
+An operation is encrypted on its own and stored as a **frame**.
+
+### The frame
+
+| Offset | Length | Field | Content |
+|---|---|---|---|
+| 0 | 4 bytes | `length` | The number of bytes that follow, as a big-endian unsigned integer |
+| 4 | 12 bytes | `nonce` | Random, made for this frame |
+| 16 | As long as the text | `ciphertext` | The operation text, encrypted |
+| end − 16 | 16 bytes | `tag` | The GCM authentication tag |
+
+A frame is 32 bytes longer than the text of its operation. `length` is 28 more than the text. Frames follow one another in the log with nothing in between. The first starts at byte 0, and each next one starts where the previous one ends.
+
+### Writing
+
+1. Read the log up to its end, so that the chain and the position are up to date.
+2. Set `previousOperationHash` to the fingerprint of the last operation, and build the text.
+3. Make 12 random bytes for the nonce.
+4. Encrypt the UTF-8 bytes of the text with **AES-256-GCM** under `K_ops`, with a 128-bit tag, and with the UTF-8 bytes of the drive's id as the additional authenticated data.
+5. Build the frame, and send it with `POST /ops/{driveId}?expectedLength=N`, where `N` is the length of the log.
+
+The server appends the frame only if the log is still that long. Otherwise it answers `409`, stores nothing, and the client goes back to step 1. If the write gets no answer, the client looks for the operation in the log before it writes again. Within a tab, operations are written one at a time.
+
+### Reading
+
+Starting from the beginning of a frame:
+
+1. Read `length`, then take that many bytes.
+2. Decrypt them with `K_ops`, the nonce and the drive's id. If the tag does not match, the entry is rejected.
+3. Parse the text, and check `previousOperationHash` against the fingerprint of the last valid operation.
+
+### What this gives
+
+- **The nonce is random**, so no position that the server reports has any part in the keystream.
+- **The tag** means an entry cannot be changed unnoticed. An entry of another drive does not open, because the id of the drive is authenticated too.
+- **A wrong password** gives a wrong key, so no entry opens. This is how a client knows: the server cannot tell, because it never sees a password.
+
+## How file data is stored
+
+### The data area
+
+The data area of a drive is one long range of bytes. In storage it is cut into objects of 1 MiB, named by their number:
+
+```text
+data/<drive id>/000000000000
+data/<drive id>/000000000001
+...
+```
+
+A position maps to a block with no lookup: block number = position ÷ 1 MiB. A file takes a range of this area that the server reserves, and that range can start and end in the middle of a block, so a block can hold the end of one file and the start of the next. The server only knows ranges of bytes. Which range is which file is in the log.
+
+### Encrypting a file
+
+Each upload gets 32 random bytes, `fileSalt`, which are kept in its `START_UPLOAD` operation, inside the encrypted log. The key is:
+
+```text
+K_file = HKDF-SHA-256(K_master, salt = fileSalt, info = "owload-file-v3", 256 bits)
+```
+
+The file is encrypted with **AES-256 in counter mode**:
+
+| Parameter | Value |
+|---|---|
+| Key | `K_file` |
+| Counter block | 16 bytes, with the block number as a big-endian integer in the last 8 |
+| Block number | Starts at 0 at the first byte of the file |
+| Padding | None: the ciphertext is exactly as long as the file |
+
+`byteOffset`, the place the server gave, is not part of any of this. It is only where the bytes are stored. Because the salt is random and the key is different for every upload, nothing a server reports can make two files share a keystream.
+
+### Reading from the middle
+
+Counter mode needs nothing from earlier in the file, which is what makes seeking in a video possible. To read from byte `p` of a file:
+
+```text
+stored position = byteOffset + p
+block number    = floor(p / 16)
+skip            = p mod 16 bytes of the first decrypted block
+```
+
+The client finds the file's salt from the position. It keeps every `START_UPLOAD`, including those of old versions, so it can find the upload that holds any byte.
+
+### The checksum
+
+A checksum of the file as it was uploaded is kept in `FINISH_UPLOAD`. It is a chain over blocks of 1 MiB counted from the start of the file, so computing it needs one block in memory, however large the file:
+
+```text
+h[0]  = SHA-256( "owload-file-checksum-v1" )
+h[i]  = SHA-256( h[i-1] || block[i] )            the last block may be shorter
+final = SHA-256( h[n] || file length as 8 bytes, big-endian )
+```
+
+`fileContentHash` is `final` in Base64. The blocks here are blocks of the file, not of the storage, so the result does not depend on where the file is stored.
+
+The client checks it after reading a whole file. A read that does not reach the end of a file, such as a video played from the middle, is not checked: see [What the checks do not cover](../threat-model/#what-the-checks-do-not-cover).
+
+### Copies, versions and deletion
+
+- **Copying** adds a `CP` operation, and the copy points at the same bytes, so it keeps the same range and salt.
+- **Replacing** a file is a new upload with a new salt. The old bytes stay, and the log still knows them, which is how [version history](../using-drives/#properties-and-history) works.
+- **Moving and renaming** change only the log. The bytes are not touched.
+- **Deleting** adds an `RM` operation. The tree no longer shows the file.
+- **Thumbnails** are ordinary files, encrypted the same way. Their names start with a reserved prefix, so they are hidden from the list of files.
+
+## Uploading a file, step by step
+
+1. `POST /sessions` reserves a range of the data area, and the server answers with `byteOffset`.
+2. The client makes `fileSalt` and writes `START_UPLOAD`.
+3. It reads the file block by block, adding each block to the checksum, and encrypts it with `K_file`.
+4. It sends the ciphertext to the reserved range, several blocks at once. The server writes each block to every storage of the drive.
+5. It writes `FINISH_UPLOAD` with the checksum, and closes the session.
+
+## Local caches
+
+To work faster, a client keeps some things in the browser's Cache API, each encrypted with a key for that cache alone:
+
+| Cache | What it holds | Encryption |
+|---|---|---|
+| File tree snapshot | The state after replaying the log | AES-256-CTR under its cache key |
+| Action log | The server's list of actions on the drive | AES-256-CTR under its cache key |
+| Operation log | The operations that were read | AES-256-CTR under its cache key |
+| Media | Dates and sizes of photos and videos | AES-256-CTR, with a random counter kept in front of the value |
+
+The names of the cache entries are encrypted too, under the keys cache key. File blocks that are cached are the ciphertext that came from the server.
+
+## What is not encrypted
+
+| What | Where | Why |
+|---|---|---|
+| The drive's title | Database and `meta.json` | The list of drives is shown before any password is typed |
+| `keyNonce`, `counterNonce` | Database and `meta.json` | Needed to derive the keys, and not secret |
+| The owner's account id, the creation date | Database and `meta.json` | Needed to run the service and to restore a drive |
+| The length of the log and of the data area | Database and storage | Needed to store them |
+| Who is on a drive, and when it was used | Database | Needed to run the service |
+
+The size of a frame shows the length of its operation, and the size of a reserved range shows the size of a file.
+
+## Worked example
+
+These are real values. Everything here is computed with standard functions, so any implementation should reach the same results.
+
+<Aside type="note" title="Check it yourself">
+Every value below is verified against the client's code by a test, so if the format ever changes, this page has to change with it.
+</Aside>
+
+### The input
+
+| Name | Value |
+|---|---|
+| Password | `correct horse battery staple` |
+| `keyNonce` | `AAECAwQFBgcICQoLDA0ODw==` (bytes `00` to `0f`) |
+| `counterNonce` | `EBESExQVFhcYGRobHB0eHw==` (bytes `10` to `1f`) |
+| Drive id | `11111111-2222-4333-8444-555555555555` |
+
+### The keys
+
+```text
+K_master  8736985eadc89cfee314d74a15389705a28c73a1e48ba151f1fc29f25442352c
+K_ops     eb4d1b510b0937607cd08b5cd8da2d2f5c2cc7447e2bde98c14f1bcc1ea4190f
+```
+
+### An operation
+
+The first operation of a drive creates the folder `/photos`, so `previousOperationHash` is empty. Its text is 27 bytes:
+
+```text
+"AAECAwQ=","",0,["/photos"]
+```
+
+Its fingerprint is `Jj/hl6oAUx1H`. With the nonce `a0a1a2a3a4a5a6a7a8a9aaab`, the frame is 59 bytes:
+
+```text
+length      00000037
+nonce       a0a1a2a3a4a5a6a7a8a9aaab
+ciphertext  ea21da24c8cbff186159327549fd4a08946c57b2961549ea20486c
+tag         edf1c1e07dc6752c278b4716830f9adb
+```
+
+`00000037` is 55: 12 bytes of nonce, 27 of ciphertext and 16 of tag.
+
+### A file
+
+The file is the 37 bytes of the text `Hello, Owload! This file is 37 bytes.`, with `fileSalt` being the bytes `20` to `3f`, or `ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=` in Base64.
+
+```text
+K_file      aaec8300ef2c75a23fa0d90ba7ca52596cef8a0fefdadb59992c70cf54542d7e
+ciphertext  91bb09cfa847677938adc114c338bbf7f820b4626b0901bed1459f57bf5b16c3e44e24d2e8
+```
+
+The file fits in one block, so the checksum has one step:
+
+```text
+h[0]   356755db919e193ce1c843a5161c1561d8fca80be455aabe5c0fe75a4c8c1c9e
+h[1]   e308e5e6ff2ff3bfcb89507822adf041dee2c1238c2f52668cac573e8cf9ac0a
+final  c0d65f05549fdcbe44415dbd78942d33fd8d3e51019a52b19d3fc9301f6ab78c
+```
+
+In `FINISH_UPLOAD`, `final` is written as `wNZfBVSf3L5EQV29eJQtM/2NPlEBmlKxnT/JMB9qt4w=`.
+
+## Where it is in the code
+
+| What | File |
+|---|---|
+| Keys, and the encryption of a file | [`engine/core/enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts) |
+| Frames of the log | [`engine/service/framed-ops-repository.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/framed-ops-repository.ts) |
+| Operations and fingerprints | [`engine/service/fs-operation.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-operation.ts) |
+| The hash chain | [`engine/service/hash-validating-ops-repository.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/hash-validating-ops-repository.ts) |
+| Replaying the log | [`engine/service/fs-state.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-state.ts) |
+| The checksum | [`engine/core/file-checksum.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/file-checksum.ts) |
+| Uploads and reads | [`engine/service/drive-client.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client.ts) |

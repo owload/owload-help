@@ -38,6 +38,8 @@ services:
       BACKEND_SECRET_KEY: ${BACKEND_SECRET_KEY:?set BACKEND_SECRET_KEY in .env}
       # How many reverse proxies stand in front of the backend (they add the client's address to X-Forwarded-For).
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Set to true when users connect S3 in your own network, or without HTTPS. Keep false on a service open to the public.
+      ALLOW_PRIVATE_STORAGE_ENDPOINTS: ${ALLOW_PRIVATE_STORAGE_ENDPOINTS:-false}
       # How much each user may store in the S3 presets, in bytes, the same for everybody.
       FREE_PLAN_STORAGE_BYTES: ${FREE_PLAN_STORAGE_BYTES:-3221225472}
       # Optional: a mail server for the invitations to drives. Without SMTP_HOST nothing is mailed.

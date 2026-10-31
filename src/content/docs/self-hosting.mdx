@@ -116,6 +116,7 @@ Each of them has no useful default: the installation does not start, or does not
 | `DOCKERHUB_NAMESPACE` | `owload` | The Docker Hub account the images are pulled from. |
 | `KEYCLOAK_AUDIENCE` | `account` | The audience the API expects in the tokens. |
 | `TRUSTED_PROXY_HOPS` | `1` | How many reverse proxies stand in front of the API (`1` for Caddy). Without the right number the API sees the proxy's address instead of the visitor's. |
+| `ALLOW_PRIVATE_STORAGE_ENDPOINTS` | `false` | Set it to `true` when people connect S3 in your own network, or without HTTPS. Keep it off if strangers can sign up: the server connects to the addresses people type in. Presets are not concerned. |
 | `FREE_PLAN_STORAGE_BYTES` | 3 GiB | How much each user may store in **your** storage presets, in bytes. A user's own S3 is not held by it. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | empty | Optional. Without `SMTP_HOST` no invitation is mailed. |
 
@@ -141,7 +142,7 @@ Owload does not keep passwords of accounts: people sign in through Keycloak, and
 
 Every drive is stored in an S3 bucket. You have two choices, and they can be combined:
 
-- **Let people bring their own S3.** Nothing to do on your side: when a person creates a drive they choose **Custom** and enter their bucket. See [Connect your own S3](../storage/#connect-your-own-s3).
+- **Let people bring their own S3.** Nothing to do on your side, unless that S3 is in your own network: then see `ALLOW_PRIVATE_STORAGE_ENDPOINTS`. When a person creates a drive they choose **Custom** and enter their bucket. See [Connect your own S3](../storage/#connect-your-own-s3).
 - **Offer a storage to everyone (a preset).** A preset is a bucket of yours that appears in the list of every person who creates a drive; the limit `FREE_PLAN_STORAGE_BYTES` applies to it. There is no screen for presets: you add one with a script that asks for the values one by one, so the secret key never lands in a shell history.
 
   <Steps>
