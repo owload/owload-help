@@ -135,7 +135,7 @@ Owload does not keep passwords of accounts: people sign in through Keycloak, and
 4. Check that the tokens carry the audience in `KEYCLOAK_AUDIENCE`, the claims `email`, `email_verified` and `name`, and `sid` (the default of current Keycloak).
 5. Sign-in with Google, registration and password reset are settings of Keycloak, not of Owload.
 
-<Aside type="tip">There is a sign-in theme in the Owload style, [keycloakify](https://github.com/owload/keycloakify). It is optional: put its `.jar` into Keycloak's `providers` folder and choose it as the realm's login theme.</Aside>
+<Aside type="tip">Keycloak's own login theme works with Owload. To match your brand, you can choose any theme of yours as the realm's login theme.</Aside>
 
 ## Where the drives are stored
 

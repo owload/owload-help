@@ -54,14 +54,14 @@ The server keeps the encrypted data and what it needs to run the service: the ti
 
 A promise about security is worth little if nobody can test it. Owload is built to be checked rather than believed: what protects your files is code and well-known cryptography that anyone can examine. Five things make that possible.
 
-- **The code is open.** Everything that touches your data is public: the client that encrypts your files, the server that stores them, and the pages where you sign in. Anyone can read what happens to a file and to a password.
+- **The code is open.** Everything that touches your files is public: the client that encrypts them and the server that stores them. Anyone can read what happens to a file and to a drive's password.
 - **The cryptography is standard.** Owload uses AES-256, PBKDF2, HKDF and SHA-256, and invents nothing of its own. Anyone who knows these algorithms can review how they are used.
 - **The behaviour is visible.** Encryption happens in your browser, so you can watch it: open the developer tools, upload a file, and see that only unreadable data is sent. With your own S3, you can also look at what lands in the bucket.
 - **The design and its limits are written down.** The architecture and the reasons behind each decision are published, and the threat model lists who could attack and what is still open, not only what is protected.
 - **You can take us out of the picture.** The Docker images are built in public from the same code, and on your own server there is no one else's server to trust.
 
 <StartGrid columns={3}>
-  <StartCard title="Public source code" href="https://github.com/owload" icon="link">The client, the server and the sign-in pages, open at github.com/owload.</StartCard>
+  <StartCard title="Public source code" href="https://github.com/owload" icon="link">The client and the server, open at github.com/owload.</StartCard>
   <StartCard title="Architecture and technologies" href="./architecture/" icon="layers">The parts, the technologies, and why each part is safe.</StartCard>
   <StartCard title="Threat model" href="./threat-model/" icon="lock">Who could attack, what they could get, and what is still open.</StartCard>
 </StartGrid>

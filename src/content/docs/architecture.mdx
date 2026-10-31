@@ -55,7 +55,6 @@ If you want to read the code, start with [How to find your way around](#how-to-f
 |---|---|---|
 | [`owload-frontend`](https://github.com/owload/owload-frontend) | TypeScript, React | The client, including the engine that does the encryption, and the landing page |
 | [`owload-backend`](https://github.com/owload/owload-backend) | Python, FastAPI | The API, the database schema and the workers |
-| [`keycloakify`](https://github.com/owload/keycloakify) | TypeScript, React | The look of the sign-in and registration pages, as a Keycloak theme |
 | [`editor-sdk`](https://github.com/owload/editor-sdk) | TypeScript | The contract between the client and its extensions |
 | [`text-editor`](https://github.com/owload/text-editor), [`xlsx-editor`](https://github.com/owload/xlsx-editor) | TypeScript, React | The editors for text files and Excel spreadsheets |
 | [`heic-viewer`](https://github.com/owload/heic-viewer), [`avi-viewer`](https://github.com/owload/avi-viewer) | TypeScript | Viewers for iPhone photos and for AVI video. The AVI viewer is built but not switched on in the client |
@@ -321,7 +320,7 @@ The client signs the user in with Keycloak (OpenID Connect with PKCE) and sends 
 
 ### Sign-in pages
 
-Keycloak renders the sign-in and registration pages itself. The `keycloakify` repository holds a theme for it, built with Keycloakify, so these pages look like Owload but run in Keycloak. Your account password goes to Keycloak and to nothing else. It is a different thing from a drive's password, which goes nowhere.
+Keycloak renders the sign-in and registration pages itself. On Owload's service they use a private theme, so they look like Owload but run in Keycloak. A theme changes only how these pages look, and a self-hosted Owload works with Keycloak's own one. Your account password goes to Keycloak and to nothing else. It is a different thing from a drive's password, which goes nowhere.
 
 ### Workers
 
@@ -432,7 +431,7 @@ See [How encryption works](../security/#how-encryption-works) for the plain-lang
 | Client state | Zustand, React Router | State and navigation |
 | Cryptography | The browser's **Web Crypto API**: AES-256-CTR, PBKDF2-SHA-512, HKDF-SHA-256, SHA-256 | Encryption, key derivation, checksums. The cipher is the browser's own, not a home-made one |
 | Streaming | Web Streams, Service Worker, Cache API | Large files and video, with bounded memory |
-| Sign-in | **Keycloak**, OpenID Connect with PKCE, Keycloakify | Accounts, passwords, Google sign-in, and the look of the pages |
+| Sign-in | **Keycloak**, OpenID Connect with PKCE | Accounts, passwords, Google sign-in |
 | API | Python 3.12, **FastAPI**, SQLAlchemy (async), Alembic, Pydantic | The HTTP service and its database migrations |
 | Tokens and secrets | PyJWT, `cryptography` (Fernet) | Checking tokens and encrypting storage keys |
 | Database | **PostgreSQL** 16 | Profiles, drives, the operation log |

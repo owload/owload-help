@@ -14,21 +14,22 @@ A storage service asks you to trust it with your files. Owload is designed so th
 
 - **The keys exist only on your device.** Files, names and folders are encrypted in your browser with a key made from your drive's password. The server stores ciphertext and never receives the password or a key. [How encryption works](#how-encryption-works)
 - **The server is a store, not a reader.** It cannot even list your files: which bytes belong to which file is written in an encrypted log that only your device can read. [Architecture and technologies](../architecture/)
-- **Every claim can be checked.** The source code of the client, the server and the sign-in pages is public. You can read it, watch the traffic of your own browser, or run the whole service yourself. [Public source code](#public-source-code)
+- **Every claim can be checked.** The source code of the client and the server is public. You can read it, watch the traffic of your own browser, or run the whole service yourself. [Public source code](#public-source-code)
 - **What we do not protect against is written down.** Not only the strengths: the [threat model](../threat-model/) lists the attackers, what each can do, and what is still open.
 - **Releases are checked, and the servers are watched.** Code is reviewed by AI and by engineers before it ships, and an agent watches the server and its logs. [Security and AI Guard](#security-and-ai-guard)
 
 ### Public source code
 
-All of Owload's code is open at **[github.com/owload](https://github.com/owload)**:
+The code that handles your files is open at **[github.com/owload](https://github.com/owload)**:
 
 | Repository | What it is | Why it matters for security |
 |---|---|---|
 | [owload-frontend](https://github.com/owload/owload-frontend) | The web client | **The encryption happens here.** This is the code to read if you want to know what is done with your files and password. |
 | [owload-backend](https://github.com/owload/owload-backend) | The API | Shows that the server accepts and returns only bytes it cannot read, and what it keeps about you. |
-| [keycloakify](https://github.com/owload/keycloakify) | The sign-in pages | The pages where you type your account password. |
 | [owload-docs](https://github.com/owload/owload-docs) | The architecture, and every decision behind it | The reasons, not only the code: why each choice was made and what was rejected. |
 | [editor-sdk](https://github.com/owload/editor-sdk) and the extensions | The contract and the editors and viewers | Third-party code is limited by a written contract and reviewed. |
+
+Sign-in is handled by [Keycloak](https://www.keycloak.org), an open-source identity server. The look of its pages on Owload's service is a private theme. Your account password has no part in encrypting your files.
 
 ### What you can check yourself
 
