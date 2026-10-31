@@ -48,7 +48,7 @@ Both are 16 random bytes, made in the browser when the drive is created and stor
 
 ### The master key
 
-`K_master` is 256 bits of PBKDF2 with HMAC-SHA-512, 100,000 iterations, with the UTF-8 bytes of the password as input and `keyNonce` as salt. It is never sent anywhere. While a drive is open it stays in the browser's local storage, and closing the drive removes it.
+`K_master` is 256 bits of PBKDF2 with HMAC-SHA-512, 100,000 iterations, with the UTF-8 bytes of the password as input and `keyNonce` as salt. It is never sent anywhere. Right after it is made, it becomes a `CryptoKey` for HKDF that cannot be extracted, so nothing can read its bytes back. While a drive is open that key is kept in the browser's IndexedDB. Closing the drive or signing out removes it.
 
 ### Keys derived from it
 

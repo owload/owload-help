@@ -97,7 +97,7 @@ The client is a single-page application in `owload-frontend`. Everything under `
 | `src/extensions` | The list of extensions and the code that checks them |
 | `src/public` | The separate application for a public link, with no sign-in |
 | `src/landing` | The landing page, shown to someone who is not signed in |
-| `src/lib` | Small helpers: previews of pictures, links to files, formats of dates and sizes |
+| `src/lib` | Small helpers: previews of pictures, links to files, formats of dates and sizes, and forgetting what is open when a sign-in ends |
 | `src/service-worker.ts` | Serves decrypted video to the browser's player: see [Playing a video](#playing-a-video) |
 | `src-tauri` | The same client in a desktop window, with a small Rust part that saves a file to disk |
 
@@ -117,7 +117,7 @@ The state lives in one Zustand store, [`stores/files-store.ts`](https://github.c
 
 | Slice | What it holds |
 |---|---|
-| `keys-slice` | The keys of the open drives. Closing a drive removes its key |
+| `open-drives-slice` | Which drives are open. A mark only: the keys are in `engine/core/key-store.ts` |
 | `drive-stats-slice` | What the app knows about each drive for its card |
 | `files-slice` | The `DriveClient` of the current drive, which is how the screens reach the engine |
 | `upload-slice` | The list of transfers and their progress |
@@ -125,7 +125,7 @@ The state lives in one Zustand store, [`stores/files-store.ts`](https://github.c
 | `media-preview-slice` | What is open in the viewer or the editor |
 | `copy-paste-slice` | What was copied or cut |
 
-Only `driveKeys` and `driveStats` are saved to the browser's local storage, under `owload_fstorage`. This keeps a drive open across reloads and tabs, and tabs follow each other through the `storage` event, so a drive closed in one tab closes in all of them. Everything else lives in memory only. Separate small stores hold the profile, the storage usage and the view mode.
+Only `openDrives` and `driveStats` are saved to the browser's local storage, under `owload_fstorage`. This keeps a drive open across reloads and tabs, and tabs follow each other through the `storage` event, so a drive closed in one tab closes in all of them. Everything else lives in memory only. Separate small stores hold the profile, the storage usage and the view mode.
 
 ### Hooks
 
@@ -156,6 +156,7 @@ The folders follow the areas of the screen: `files-area` (the grid and the list 
 |---|---|
 | [`enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts) | Key derivation (`generateKey`, `deriveStreamKey`, `deriveFileKey`) and the encrypting stream of a file (`createEncryptingStream`) |
 | [`file-checksum.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/file-checksum.ts) | The checksum of a file, chained over its blocks, with one block in memory |
+| [`key-store.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/key-store.ts) | The master keys of open drives: in IndexedDB, as keys that cannot be extracted |
 | [`sealed-cache.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/sealed-cache.ts) | Encryption of a cached value that is rewritten from time to time, with a fresh random counter each time |
 | [`parallel-blocks.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/parallel-blocks.ts) | Reads a range as several blocks at once and hands them out in order, with bounded memory |
 | [`stream-utils.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/stream-utils.ts) | Web Streams helpers: padding and skipping bytes so that encryption can start at any position |
@@ -474,6 +475,8 @@ Each property below comes from how the system is built, not from a promise. The 
 | **Little to steal** | The server keeps only what it must: sizes, titles, access, and when a drive was used. It keeps **no file names**, no contents, no passwords. | `app/db/models.py` |
 | **Nothing is revealed by probing** | A drive you may not see answers like one that does not exist; wrong, old and made-up public links answer alike; public reads are rate-limited and send no-store, no-referrer and no-index headers. | `app/api/deps.py`; `app/api/routes/public.py` |
 | **Storages of users stay outside the server's network** | The address of every connection to a storage a user named is checked as it is made, also after a redirect, and only HTTPS is accepted. A refused address answers like one that cannot be reached. | `app/services/storage_address.py` |
+| **A key cannot be copied off the device** | The master key cannot be extracted from the browser, even by the app's own code, and signing out in any way removes it. | `generateKey` in `engine/core/enc.ts`; `engine/core/key-store.ts`; `lib/forget-drives.ts` |
+| **Only the app's own code runs on the page** | A strict Content-Security-Policy allows only its own scripts, and connections only to its API and sign-in service. | `docker_entrypoint.sh` |
 | **Secrets stay out of the images** | The images are checked for stray secrets, the API runs as an ordinary user, and error messages never name your bucket or contain the storage's own text. | `.github/workflows/docker.yml`; `app/services/storage_errors.py` |
 | **You can verify it** | The code is public, the build is public, and you can run the whole service yourself. | [Self-hosting](../self-hosting/) |
 

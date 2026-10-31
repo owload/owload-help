@@ -118,6 +118,7 @@ Each of them has no useful default: the installation does not start, or does not
 | `TRUSTED_PROXY_HOPS` | `1` | How many reverse proxies stand in front of the API (`1` for Caddy). Without the right number the API sees the proxy's address instead of the visitor's. |
 | `ALLOW_PRIVATE_STORAGE_ENDPOINTS` | `false` | Set it to `true` when people connect S3 in your own network, or without HTTPS. Keep it off if strangers can sign up: the server connects to the addresses people type in. Presets are not concerned. |
 | `FREE_PLAN_STORAGE_BYTES` | 3 GiB | How much each user may store in **your** storage presets, in bytes. A user's own S3 is not held by it. |
+| `APP_CSP_REPORT_ONLY` | `false` | Set it to `true` on the client to report what the Content-Security-Policy would block, instead of blocking it. For finding the cause of a problem. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | empty | Optional. Without `SMTP_HOST` no invitation is mailed. |
 
 Make the key for `BACKEND_SECRET_KEY` with:

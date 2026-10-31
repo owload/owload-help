@@ -63,14 +63,16 @@ What helps: the code is **public**, so changes can be audited; releases are revi
 
 ### Keys kept in your browser
 
-While a drive is open, its keys are kept in the browser's storage on this device so that you do not retype the password on every page. Your **sign-in tokens** are kept in the same storage. Anyone with physical access to an unlocked device, or any script that runs on the page (for example from a malicious browser extension), can reach them.
+While a drive is open, its master key is kept in this browser, so that you do not retype the password on every page. It is stored as a key that cannot be extracted: the browser uses it and gives its bytes to nobody, so it cannot be copied off the device. Your **sign-in tokens** are kept in the browser's storage too. Anyone with physical access to an unlocked device, or a script running on the page, could use what is open while they are there.
+
+Closing a drive removes its key. Signing out removes the keys of all drives, however the sign-in ends: with the button, from another device, or when the session expires.
 
 - **Close drives** you are not using, and sign out.
 - Do not open drives on computers you do not control.
 
-### No Content-Security-Policy yet
+### What a script on the page can do
 
-The web client does not yet send a **Content-Security-Policy**. A policy would limit where a script on the page may send data, as a second line of defence if a dependency or an extension were ever compromised. It is **planned**, and until it is there the protection against a bad dependency is review and pinning, not the browser.
+The web client sends a strict **Content-Security-Policy**: only its own scripts run, and the page can talk only to its API and to the sign-in service. This is a second line of defence if a dependency or an extension were ever compromised. Inline styles and WebAssembly are allowed, because the interface and the HEIC viewer need them.
 
 ### Metadata
 
