@@ -1,0 +1,245 @@
+---
+title: Storage and copies
+description: "The free 3 GB, your own S3, copies of a drive in more than one storage, and restoring a drive from a bucket."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Storage and your own S3
+
+Every drive lives in one or more **storages**. There are two kinds, and they are counted apart.
+
+| | **Owload's storage** | **Your own S3** |
+|---|---|---|
+| What it is | Storage that Owload provides (the "presets" you pick when you create a drive) | A bucket you own, connected as **Custom** |
+| Limit | **3 GB** on the free plan | **None from Owload.** As much as your bucket holds |
+| Cost | Free up to the limit. Paid plans with more space are coming soon | Free. You pay your provider |
+| How to use it | Keep the default | [Connect your own S3](#connect-your-own-s3) |
+
+### The free 3 GB
+
+The limit counts what is stored on Owload's storage by the drives **you own**, summed over all of them, **once for each storage that holds a copy**. Drives shared with you count for their owner, not for you.
+
+- Your profile and the side panel show **how much you use** against the limit. While Owload is still counting, a **+** marks a part of the total.
+- It is checked **when an upload starts**: if the files would not fit, the upload is refused, with a message that says which limit is in the way.
+- **Deleting is never refused**, and frees room. A limit that is lowered below what is stored stops new writes and removes nothing. Reading is never blocked.
+- If **someone else writes** to your drive (a writer or an admin), their uploads count against **your** space, not theirs.
+
+### The limit of one drive
+
+The **owner** can set a limit for a single drive in its **settings**, under **Storage limit**, or remove it. Nobody can write beyond it, the owner included, and everyone who has the drive sees the limit. Without one, a drive may use whatever is left of the owner's plan.
+
+A drive that is **only on your own S3** is not held by the plan, but is held by its own limit if you set one.
+
+<Aside type="note" title="What others are told">
+If an upload is refused because of the **owner's** plan, a person who is not the owner is only told that the owner's storage is full. How much the owner has is not theirs to know.
+</Aside>
+
+### What the sizes mean
+
+A drive's size on its card is the **encrypted data** in its main storage, in blocks of 1 MiB. It is a little more than your files add up to, and it keeps the **history** of replaced files. The numbers are counted by the server from the storage, so they are right even after changes made from another device, but they can lag a few minutes.
+
+### More than 3 GB
+
+[Connect your own S3 bucket](#connect-your-own-s3) and create the drive on it. There is no limit from Owload, and it is free. You can also keep [copies in more than one storage](#copies-in-more-than-one-storage), for example one on Owload and one in your bucket.
+
+Paid plans with more space on Owload's storage are coming soon.
+
+### Connect your own S3
+
+This is the web version, with one difference: a drive's data is stored in **an S3 bucket that you own** instead of on Owload's storage. It is free, there is no storage limit from Owload, and you can keep as much as your bucket holds. You pay your storage provider, nobody else.
+
+<Figure name="connect-own-s3-form" />
+
+#### What S3 is
+
+S3 is a way of storing files in the cloud. Amazon created it for its Simple Storage Service, and its interface became a common standard: many companies and open-source projects now offer storage that works the same way. Such storage is called **S3-compatible**, and Owload connects to it in the same way as to Amazon's.
+
+Four words are enough to use it:
+
+- A **bucket** is a named container for your data, in your account at the provider.
+- The **endpoint** is the web address of the storage service.
+- The **region** is where the provider keeps the bucket.
+- An **access key** and its **secret key** are the login that a program uses to reach the bucket.
+
+#### Why use your own
+
+- **Space.** Owload sets no limit: you keep as much as your bucket holds.
+- **Your choice of place.** You pick the company and the country, and you see the bill.
+- **Your exit.** The encrypted data is yours, so you can leave Owload and take it with you.
+- **Reliability.** Keep one drive at several unrelated providers, so that it survives the loss of any one of them: see [Reliability](../reliability/).
+
+Using your own S3 does not change who can read your files. They are encrypted in your browser, so your provider gets only unreadable data, just as Owload's storage does.
+
+#### Which storage you can use
+
+| Kind | Examples | Good for |
+|---|---|---|
+| **Large clouds** | AWS S3 | Many regions, and a company you may already use |
+| **Storage specialists** | Backblaze B2, Cloudflare R2, Wasabi | A lower price for large amounts of data |
+| **European providers** | Hetzner, OVHcloud, Scaleway | Keeping data in Europe, with a European company |
+| **Your own server** | Garage, SeaweedFS, Ceph | Keeping the data on hardware you control |
+
+These are examples, not a list of tested services. Owload's server has to be able to reach the storage, so S3 on your own server needs a public address, unless you [self-host](../self-hosting/) all of Owload next to it.
+
+<Aside type="caution" title="Not every S3 service works yet">
+Owload puts the bucket's name in the path of the address (`endpoint/bucket`). Services that accept the name only at the start of the host name (`bucket.endpoint`) do not work with Owload yet. Among them are **Alibaba Cloud OSS**, **Huawei Cloud OBS** and **Tencent Cloud COS** buckets created since 2024.
+
+**Test connection** only checks that the bucket can be reached. Before you rely on a new provider, upload a file, then open it.
+</Aside>
+
+#### How it works
+
+- Your files are encrypted in your browser first. What reaches the bucket is unreadable data.
+- Owload's server writes and reads that data **in your bucket**, using the access key you give it. It does not store the contents anywhere else.
+- Owload still keeps the small things it needs to run the service: your account, the list of your drives, who may open them, and the drive's title.
+
+<Aside type="caution" title="The server uses your access key">
+To write to your bucket, Owload's server needs the access key. It is kept encrypted in our database and used only to reach your bucket. **Use a key made for this one purpose,** limited to one bucket, so that you can revoke it at any time and nothing else of yours is reachable with it.
+</Aside>
+
+#### Before you start
+
+- An **S3-compatible storage**: see [Which storage you can use](#which-storage-you-can-use).
+- A **bucket** used only for Owload.
+- Its **address (endpoint URL), region, bucket name, access key and secret key.**
+- The storage has to be **reachable from the internet**: Owload's server connects to it, not your browser. A bucket inside a private network will not work (for that, [self-host](../self-hosting/)).
+
+#### Set it up
+
+<Steps>
+
+1. **Create a bucket** in your storage provider. Leave it private, with public access blocked.
+
+2. **Create an access key for it** with only the permissions Owload needs on that bucket: list it, and read, write and delete its objects.
+
+   <Tabs>
+     <TabItem label="AWS S3 policy">
+       Replace `YOUR-BUCKET` with the name of your bucket and attach the policy to a dedicated IAM user:
+
+       ```json
+       {
+         "Version": "2012-10-17",
+         "Statement": [
+           {
+             "Effect": "Allow",
+             "Action": ["s3:ListBucket"],
+             "Resource": "arn:aws:s3:::YOUR-BUCKET"
+           },
+           {
+             "Effect": "Allow",
+             "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+             "Resource": "arn:aws:s3:::YOUR-BUCKET/*"
+           }
+         ]
+       }
+       ```
+     </TabItem>
+     <TabItem label="Other providers">
+       Make a key (or a service account) that has read, write, delete and list rights on this bucket only. The names of the rights differ between providers.
+     </TabItem>
+   </Tabs>
+
+3. **Create a drive in Owload.** Choose **New drive**, set its name and password, and in the storage section switch from **Preset** (Owload's storage) to **Custom**.
+
+4. **Fill in the connection:** *Endpoint URL* (for AWS, `https://s3.amazonaws.com` or the address of your region), *Region*, *Bucket*, *Access key* and *Secret key*. Choose **Test connection** to check that Owload's server can reach your bucket with this key.
+
+5. **Add your files.** They are encrypted on your device and written to your bucket.
+
+</Steps>
+
+#### Good to know
+
+- **The bucket does not reveal your files.** File contents, names and folder structure are all encrypted. One small record is not: the drive's title, the id of the owner's account, the creation date and two technical values needed to [restore the drive](#restore-from-a-storage). None of them reveals the key.
+- **Copies in more than one place.** A drive can have its main storage and up to two more copies, in other buckets of yours or on Owload's storage. Add them in the drive's settings: see [Copies in more than one storage](#copies-in-more-than-one-storage).
+- **Rescue from the bucket.** If a drive disappears from your account but the bucket is intact, **Restore drives** reads the bucket and brings the drives back (see [Restore from a storage](#restore-from-a-storage)). You still need each drive's password to open it.
+- **Do not put anything else in the bucket,** and do not change or delete its objects yourself: that damages the drive.
+- **Leaving.** Because the data is yours, you can stop using Owload at any time and delete the access key. The encrypted data stays in your bucket, and it can be opened with a [self-hosted](../self-hosting/#move-from-the-web-version) Owload and the drive's password.
+
+## Copies in more than one storage
+
+A drive can live in **one storage or in up to three**: a **main** storage and up to **two secondary** ones, each holding a full copy of the drive's encrypted data. They can be on Owload's storage, in your own S3 buckets, or a mix.
+
+Copies protect you from the loss of one storage: if a bucket is deleted, closed by its provider or simply unreachable, the others still hold everything. In the app, the main storage is labelled **MASTER** and a secondary one **SLAVE**.
+
+For why to do this, how to choose the storages and what to do when one fails, see [Reliability](../reliability/). This section is the reference for each action.
+
+### How the copies work
+
+- **Writes go to every storage at once.** When you add or change a file, the encrypted data is written to the main storage and to each secondary one in parallel. If one of them cannot take the write, the others are rolled back and you get an error that says which storage had the problem.
+- **Reads come from the main storage.**
+- **A storage that is down stops writes**, rather than letting the copies drift apart. You see why in the transfers panel: see [Transfers](../using-drives/#when-an-upload-fails).
+
+<Figure name="copies-of-a-drive" />
+
+### Add a copy
+
+Open the drive's **settings**, then **Storage targets**, and choose **Add slave storage**: one of Owload's presets or **Custom** (your own S3: endpoint, region, bucket, keys, with **Test connection**). A secondary storage may also be a **cold** one (an archive tier), which cannot be the main storage.
+
+- A drive that **already has data** gets the copy **in the background**. The new storage shows **backfill in progress** with a count of what is done, and becomes active when it is complete. New files are written to it right away.
+- An **empty** drive is active at once.
+- You **cannot** add the same bucket twice to one drive: two storages in one place would not be independent copies.
+- When a copy is on Owload's storage it counts against your [plan's limit](#storage-and-your-own-s3), once for each storage that holds it.
+
+### Change the main storage
+
+**Make master** on an active, non-cold secondary storage swaps the roles: the old main becomes secondary. It also works when the old main storage cannot be reached, and uploads in progress are not interrupted.
+
+### Remove a copy
+
+**Delete** a secondary storage in the settings. You confirm it first.
+
+- The drive's data on that storage is **permanently deleted**, on Owload's storage and in your own bucket alike.
+- If the storage cannot be reached, Owload says so and offers **Force delete anyway**, which detaches it. Any data left there stays there, encrypted.
+
+You cannot remove the main storage: make another one main first.
+
+<Aside type="caution" title="A copy is not a backup of your mistakes">
+Copies hold the **same** state of the drive. If you delete a file, it is deleted from every copy. They protect against losing a storage, not against deleting or overwriting something. The drive's [history](../using-drives/#properties-and-history) keeps earlier versions of replaced files.
+</Aside>
+
+## Restore from a storage
+
+Because your drives' data lives in a bucket **you own**, Owload can rebuild a drive from that bucket if it is no longer in your account: for example, after you deleted a drive but chose to **keep the data**, or when you move to a [self-hosted](../self-hosting/) Owload.
+
+<Figure name="restore-from-bucket" />
+
+### What you need
+
+- The **bucket's connection**: endpoint, region, bucket name, access key and secret key, with the right to list and read the bucket.
+- The **drive's password**. Restoring brings the drive back, but it is still encrypted: only its password opens it.
+
+### Restore
+
+<Steps>
+
+1. On the **New drive** page, choose **Restore from storage**.
+2. **Connect:** enter the bucket's connection and choose **Find drives**. Owload lists what it finds in the bucket, up to 100 drives at a time. Nothing is written yet.
+3. **Choose** the drives to restore (up to 20 at once). Each has a title, a short id and its creation date.
+4. **Restore.** You see the result for each drive.
+
+</Steps>
+
+Then open the drive with the password it was created with.
+
+### What comes back, and what does not
+
+- **Comes back:** the drive's **files, folders and history**, with the **same id and creation date**. It opens with the same password.
+- **You become the owner.** The list of people with access is **not** kept in the bucket, so it starts empty: share the drive again.
+- **The bucket becomes the drive's main storage.**
+
+### Drives that cannot be restored
+
+The list tells you why a drive is greyed out:
+
+- **Already in the system.** A drive with that id exists already, in any account. Owload does not say whose it is. If it is yours, add the bucket as a [secondary storage](#copies-in-more-than-one-storage) of that drive instead.
+- **Damaged.** Something the drive needs is missing in the bucket (for example a gap in its history). A damaged drive is not restored, because a silent patch would corrupt the files.
+
+<Aside type="note" title="Why there is no “restore as a copy”">
+A copy of a drive under a new id would be encrypted with the same keys and counters as the original. Two different versions of the same drive would then share a keystream, which weakens the encryption. Use a secondary storage to copy a drive instead.
+</Aside>
+
+### Privacy of the connection
+
+The bucket's keys are used for the request. They are stored (encrypted) **only for drives that were actually restored**, and they are never written to logs. Presets are not offered here, because a preset bucket is shared by many people.

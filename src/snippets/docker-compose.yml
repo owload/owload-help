@@ -1,0 +1,85 @@
+# Running Owload from the images on Docker Hub. Save it as docker-compose.yml, and the .env example next to it as .env, in a
+# directory of its own, fill the .env in (every value marked CHANGE), then: docker compose up -d
+# It needs Docker Compose v2 (`docker compose`, with a space). The old `docker-compose` (v1) cannot read this file.
+#
+# What it does not hold: Keycloak (the sign-in service, run elsewhere and named in the .env) and the S3 storage of the drives (each
+# drive picks one when it is created, or the operator adds presets, see the self-hosting guide). The two ports are published on 127.0.0.1 only:
+# put a reverse proxy with HTTPS in front of them (see the Caddyfile example). Never publish them on all interfaces.
+# A port reads "address on the host : port on the host : port in the container"; change the first port only if the host's one is taken.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: owload
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: owload
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U owload -d owload"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ${DOCKERHUB_NAMESPACE:?set DOCKERHUB_NAMESPACE in .env}/owload-backend:${BACKEND_VERSION:-latest}
+    restart: unless-stopped
+    environment: &backend-env
+      DATABASE_URL: postgresql+asyncpg://owload:${POSTGRES_PASSWORD}@postgres:5432/owload
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?set KEYCLOAK_ISSUER in .env}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-account}
+      # The addresses the web client is served from (a JSON list).
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?set CORS_ALLOW_ORIGINS in .env}
+      # The address of the web client, for the links in invitations.
+      APP_URL: ${APP_URL:?set APP_URL in .env}
+      # Encrypts the S3 passwords kept in the database. Make one (see the .env example) and never change it afterwards.
+      BACKEND_SECRET_KEY: ${BACKEND_SECRET_KEY:?set BACKEND_SECRET_KEY in .env}
+      # How many reverse proxies stand in front of the backend (they add the client's address to X-Forwarded-For).
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # How much each user may store in the S3 presets, in bytes, the same for everybody.
+      FREE_PLAN_STORAGE_BYTES: ${FREE_PLAN_STORAGE_BYTES:-3221225472}
+      # Optional: a mail server for the invitations to drives. Without SMTP_HOST nothing is mailed.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Extra headers for every mail (a JSON object), for example to turn off the rewriting of links by a mail service; see the .env example.
+      SMTP_EXTRA_HEADERS: ${SMTP_EXTRA_HEADERS:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Copies a drive's data to a storage that was added to it later, and then activates it. The same image as the backend.
+  backfill-worker:
+    image: ${DOCKERHUB_NAMESPACE}/owload-backend:${BACKEND_VERSION:-latest}
+    restart: unless-stopped
+    environment: *backend-env
+    command: python -m app.backfill_worker --loop --interval 10
+    healthcheck:
+      disable: true  # the image's health check asks the API port, which a worker does not open
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    image: ${DOCKERHUB_NAMESPACE}/owload-frontend:${FRONTEND_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      # Addresses the browser of a user reaches (not the ones between containers).
+      APP_MAIN_BACKEND_URL: ${APP_MAIN_BACKEND_URL:?set APP_MAIN_BACKEND_URL in .env}
+      APP_KEYCLOAK_URL: ${APP_KEYCLOAK_URL:?set APP_KEYCLOAK_URL in .env}
+      APP_KEYCLOAK_REALM: ${APP_KEYCLOAK_REALM:-owload}
+      APP_KEYCLOAK_CLIENT_ID: ${APP_KEYCLOAK_CLIENT_ID:-front}
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

@@ -1,0 +1,23 @@
+---
+interface Props {
+  /** How many cards go side by side when there is room (they go one under another on a narrow screen). */
+  columns?: 2 | 3;
+}
+const { columns = 2 } = Astro.props;
+---
+
+<div class="start-grid" style={`--columns: ${columns}`}><slot /></div>
+
+<style>
+  .start-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+  @media (min-width: 40rem) {
+    .start-grid {
+      grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+    }
+  }
+</style>

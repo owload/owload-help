@@ -1,0 +1,204 @@
+---
+title: Security and privacy
+description: "How Owload keeps files unreadable to everyone but you, how that can be checked, and what it keeps about you."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+
+## Security and transparency
+
+A storage service asks you to trust it with your files. Owload is designed so that you **do not have to**: the design makes it impossible for the service to read your files, and everything that makes that true is **public**, so that you can check it yourself.
+
+### In short
+
+- **The keys exist only on your device.** Files, names and folders are encrypted in your browser with a key made from your drive's password. The server stores ciphertext and never receives the password or a key. [How encryption works](#how-encryption-works)
+- **The server is a store, not a reader.** It cannot even list your files: which bytes belong to which file is written in an encrypted log that only your device can read. [Architecture and technologies](../architecture/)
+- **Every claim can be checked.** The source code of the client, the server and the sign-in pages is public. You can read it, watch the traffic of your own browser, or run the whole service yourself. [Public source code](#public-source-code)
+- **What we do not protect against is written down.** Not only the strengths: the [threat model](../threat-model/) lists the attackers, what each can do, and what is still open.
+- **Releases are checked, and the servers are watched.** Code is reviewed by AI and by engineers before it ships, and an agent watches the server and its logs. [Security and AI Guard](#security-and-ai-guard)
+
+### Public source code
+
+All of Owload's code is open at **[github.com/owload](https://github.com/owload)**:
+
+| Repository | What it is | Why it matters for security |
+|---|---|---|
+| [owload-frontend](https://github.com/owload/owload-frontend) | The web client | **The encryption happens here.** This is the code to read if you want to know what is done with your files and password. |
+| [owload-backend](https://github.com/owload/owload-backend) | The API | Shows that the server accepts and returns only bytes it cannot read, and what it keeps about you. |
+| [keycloakify](https://github.com/owload/keycloakify) | The sign-in pages | The pages where you type your account password. |
+| [owload-docs](https://github.com/owload/owload-docs) | The architecture, and every decision behind it | The reasons, not only the code: why each choice was made and what was rejected. |
+| [editor-sdk](https://github.com/owload/editor-sdk) and the extensions | The contract and the editors and viewers | Third-party code is limited by a written contract and reviewed. |
+
+### What you can check yourself
+
+1. **Read the code that encrypts.** The key derivation, the cipher and the checks are in the client, in plain TypeScript.
+2. **Watch the traffic.** Open your browser's developer tools, upload a file, and look at what is sent: unreadable data, and no password or key anywhere.
+3. **Look at what the server stores.** The [API](../reference/#api-overview) has no operation that takes a password, a key or a file name.
+4. **Run it yourself.** [Self-hosting](../self-hosting/) puts the whole service on your own server, so there is no one else's server to trust.
+5. **Read the reasons.** The decision records in `owload-docs` explain each design choice, including the ones that were rejected.
+
+<Aside type="note" title="A web app is delivered by a server">
+The one thing a web app cannot prove by itself is that the code you receive today is the code in the repository. That is why self-hosting and a public, reviewable code base matter. We say this plainly in the [threat model](../threat-model/).
+</Aside>
+
+### How the software is built and shipped
+
+- **Images are built in public, by CI.** The Docker images of the client and the API are built by GitHub Actions from the public repositories. The actions are **pinned to an exact commit**, not to a moving tag.
+- **Build records.** Each image carries build **provenance** and a **software bill of materials** (SBOM).
+- **Nothing secret in an image.** Each build checks the finished image and fails if it finds a `.env`, a `.git` folder or the tests; the API runs as an **ordinary user**, not as root.
+- **Pinned versions.** Production runs a fixed version of each image, and dependencies that come from our own repositories (the editors) are pinned to an exact tag or commit.
+- **Third-party code is the exception.** A library inside an extension is judged case by case: an exact version, bundled with it, a fitting licence, no network use, every update reviewed. Today there is one (a decoder for HEIC photos).
+
+### How releases are checked and the servers watched
+
+Before every release the code is reviewed by AI, attacked by AI the way a real attacker would, and reviewed by engineers: nothing ships on the AI's word alone. After release, **AI Guard** watches the server and its logs. See [Security and AI Guard](#security-and-ai-guard).
+
+### Report a problem
+
+If you think you found a security problem, write to [info@owload.com](mailto:info@owload.com). Please give us time to fix it before you publish it.
+
+## How encryption works
+
+Owload is built so that the server **cannot** read your files, rather than promising that it will not. Everything below happens in your browser, in code you can [read](https://github.com/owload).
+
+### What is encrypted
+
+- **File contents.**
+- **File and folder names**, and the structure of the folders.
+- **The record of what you did in the drive** (create, rename, move, delete, replace), which is the drive's own log.
+- **The small preview pictures** stored next to your photos, videos and documents.
+- **The drive's description.**
+
+### The keys
+
+1. You type the drive's **password**. It never leaves your device.
+2. A **master key** is made from the password and a random value stored with the drive (a salt), using **PBKDF2-SHA-512 with 100,000 iterations**. It is slow on purpose, to make guessing passwords expensive.
+3. From the master key, **independent keys** are derived with **HKDF-SHA-256**: one for the drive's log, one for file data, and separate ones for the browser's caches. A key is used for one purpose only.
+4. Data is encrypted with **AES-256 in counter mode (CTR)**. The counter comes from the position of the data in the drive, and a second random value stored with the drive keeps two drives from ever sharing a keystream.
+
+The password, the master key and the derived keys **never leave your device**. Owload's servers do not receive them and cannot compute them.
+
+<Figure name="password-to-keys" />
+
+### Is it tampered with?
+
+Encryption hides the data; it does not by itself show that someone changed it. Owload adds two checks:
+
+- **Every file has a checksum** (SHA-256 of the file as you uploaded it), stored in the drive's log. After a full download the file is decrypted and **checked against it**. If anything was altered or damaged in storage, you get an error, not a silently broken file.
+- **The drive's log is a chain:** each entry carries the fingerprint of the one before it. Altering an entry in the middle breaks everything after it, and the client notices.
+
+What these checks do **not** cover is described honestly in [Threat model](../threat-model/).
+
+<Figure name="hash-chain" />
+
+### What our servers have
+
+| Our servers have | Our servers do not have |
+|---|---|
+| The encrypted data of your drives, in blocks | Your password or any key |
+| The sizes of drives and of the blocks | File contents, file names, folder names |
+| The **title of a drive** and who may open it, with their roles | What is inside a drive |
+| When a drive was opened, read or written | Which file was opened or written |
+| Your account: email, name, picture | Your drive passwords |
+
+Because of this:
+
+- A **breach of our servers or of the storage** reveals ciphertext, which is useless without the passwords.
+- **We cannot reset or recover** a drive's password.
+- We cannot read your files **even if asked to**.
+
+<Aside type="note" title="Titles are not encrypted">
+A drive's **title** is visible to the server (it is shown on the drive's card and in invitations). Do not put secrets in it. File and folder names inside the drive **are** encrypted.
+</Aside>
+
+### Check it yourself
+
+- **Read the code:** the client that encrypts is public at [github.com/owload](https://github.com/owload).
+- **Look at the traffic:** open your browser's developer tools, upload a file and look at the requests. The body of each is unreadable data.
+- **Self-host:** run the server yourself and have no one else's server to trust. See [Self-hosting](../self-hosting/).
+
+## Security and AI Guard
+
+### Before every release
+
+Encryption on your device is only as trustworthy as the code that does it, so no release skips these checks:
+
+<Steps>
+
+1. **AI deep code review**
+
+   AI goes through the code in depth, looking for security problems. It looks first for anything that could send your password or keys to the server, leaks of private data, and gaps in who may open which drive.
+
+2. **AI break-in attempts**
+
+   We attack our own product with AI, the way a real attacker would, and fix what it finds.
+
+3. **Human review**
+
+   Engineers review the same change. Nothing ships on the AI's word alone.
+
+</Steps>
+
+Only then a release ships.
+
+### AI Guard
+
+**AI Guard** is an AI agent that keeps watch over our server and its logs and checks that nothing suspicious is going on. It works with what the server has, and the server has none of your files, their names or your password.
+
+### Open source
+
+The source code of the client that encrypts your files and of the server that stores them is public: [github.com/owload](https://github.com/owload).
+
+## Privacy
+
+Owload is built to know as little as possible. This page lists what it **does** keep. For what it cannot know, see [How encryption works](#how-encryption-works).
+
+### What Owload keeps
+
+| What | Why | Who can see it |
+|---|---|---|
+| **Your account:** email, name, picture | To sign you in and to show you to the people you share with | You. People on your drives see your **name** (not your email); owners and admins see the addresses of the people on their drives |
+| **Your drives' data:** encrypted blocks and the encrypted log | It is the product | Nobody can read it without the drive's password |
+| **A drive's title, size and access list:** who has which role | To list and open drives, and enforce access | People on the drive, as described above |
+| **Which drives you opened, read or wrote, and when**, with your **IP address and browser** | For **your own** information and security, in your account's activity | **Only you** |
+| **Your signed-in devices:** a short description, address, time last seen | To let you see and end them | **Only you** |
+| **Requests for access and invitations:** the email, the message you wrote, the drive | To deliver them | The drive's owner and admins, and the person |
+| **Visits to a public drive** through its link: the time and a rough description of the browser ("Safari on iOS"), **nothing else** | To show the owner that the drive was read | People on the drive; no address, cookie or account is kept |
+
+### What Owload does not keep
+
+- Your **drive passwords** or any encryption key.
+- The **contents or names** of your files and folders.
+- **Which file** you opened: only that a drive was opened.
+- The **address of people who visit a public link**, or any way to recognise them.
+
+### How long
+
+| What | Kept for |
+|---|---|
+| Account activity (with IP address and browser) | **365 days**; older events are removed at your next sign-in |
+| Signed-in devices not used | **90 days** |
+| Visits to a public drive | **30 days** |
+| Space reserved for an unfinished upload | **24 hours** |
+| Your drives and account | Until you delete them |
+
+On a [self-hosted](../self-hosting/) installation, the operator sets the retention.
+
+### Mail
+
+Owload sends mail only when something needs your attention: an **invitation** to a drive, a **request** for access, the **answer** to a request. The mail has the drive's name, the people involved and a link. It never contains a password or any file content.
+
+### Deleting your data
+
+- **Delete a drive** (as its owner) to delete its data. Data on Owload's storage is removed. Data on your own S3 is removed or kept as you choose. See [Drives](../using-drives/#delete-a-drive).
+- To close your **account** and have its data removed, write to [info@owload.com](mailto:info@owload.com).
+
+### Third parties
+
+- **Sign-in** is handled by Keycloak, which Owload runs. You may sign in with Google if it is offered; then Google tells Owload your name and email.
+- **Mail** is sent through a mail service the operator configures.
+
+<Aside type="note">
+This page describes how the software works. The operator of an installation, Owload for the web version, is responsible for its own privacy policy and legal terms.
+</Aside>

@@ -1,0 +1,98 @@
+---
+interface Props {
+  title: string;
+  href: string;
+  /** The link under the text. */
+  more: string;
+  icon: "lock" | "layers" | "server" | "users";
+  /** The one that carries the main promise is dark. */
+  tone?: "dark" | "light";
+}
+const { title, href, more, icon, tone = "light" } = Astro.props;
+
+const ICONS: Record<Props["icon"], string[]> = {
+  lock: ["M5 11h14v10H5z", "M8 11V7a4 4 0 0 1 8 0v4"],
+  layers: ["M12 2l10 5-10 5L2 7z", "M2 12l10 5 10-5", "M2 17l10 5 10-5"],
+  users: ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M22 21v-2a4 4 0 0 0-3-3.9", "M16 3.1a4 4 0 0 1 0 7.8"],
+  server: ["M4 3h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z", "M4 13h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z", "M7 7.5h.01", "M7 17.5h.01"],
+};
+---
+
+<section class:list={["pillar", { dark: tone === "dark" }]}>
+  <span class="tile">
+    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      {ICONS[icon].map((d) => <path d={d} />)}
+    </svg>
+  </span>
+  <h3>{title}</h3>
+  <div class="text"><slot /></div>
+  <a href={href}>
+    {more}
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+  </a>
+</section>
+
+<style>
+  .pillar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 1.25rem;
+    background: var(--sl-color-black);
+    color: var(--sl-color-gray-2);
+  }
+  .pillar.dark {
+    border-color: #1d1c19;
+    background: #1d1c19;
+    color: #ffffff;
+  }
+  :global(:root[data-theme="dark"]) .pillar.dark {
+    border-color: var(--sl-color-gray-5);
+    background: #262521;
+  }
+  .tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    background: #fadb58;
+    color: #1d1c19;
+  }
+  h3 {
+    margin: 0.25rem 0 0 !important;
+    font-size: var(--sl-text-lg);
+    line-height: 1.25;
+    font-weight: 800;
+    color: var(--sl-color-white);
+  }
+  .dark h3 {
+    color: #fadb58;
+  }
+  .text {
+    flex: 1;
+    margin: 0;
+    font-size: var(--sl-text-base);
+    line-height: 1.55;
+  }
+  .text :global(p) {
+    margin: 0 !important;
+  }
+  a {
+    margin: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    color: var(--sl-color-white);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .dark a {
+    color: #fadb58;
+  }
+</style>

@@ -1,0 +1,58 @@
+---
+import Default from "@astrojs/starlight/components/PageSidebar.astro";
+import { APP_URL } from "../site";
+---
+
+<Default {...Astro.props}><slot /></Default>
+<div class="new-here sl-hidden lg:sl-block">
+  <div class="card">
+    <h2>New to Owload?</h2>
+    <p>Create a free account and try your first encrypted drive.</p>
+    <a href={APP_URL}>
+      Try Owload
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+    </a>
+  </div>
+</div>
+
+<style>
+  .new-here {
+    padding: 0 var(--sl-sidebar-pad-x) 1rem;
+  }
+  .card {
+    width: calc(var(--sl-sidebar-width) - 2 * var(--sl-sidebar-pad-x));
+    box-sizing: border-box;
+    border-radius: 1rem;
+    background: var(--sl-color-gray-6);
+    padding: 1.1rem;
+  }
+  h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+  p {
+    margin: 0 0 0.9rem;
+    font-size: var(--sl-text-sm);
+    line-height: 1.45;
+    color: var(--sl-color-gray-3);
+  }
+  a {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    min-height: 2.6rem;
+    padding: 0 1rem;
+    border-radius: 0.7rem;
+    background: #fadb58;
+    color: #1d1c19;
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a:hover {
+    background: #edca44;
+  }
+</style>

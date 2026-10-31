@@ -1,0 +1,117 @@
+---
+title: Sharing and access
+description: "Roles, invitations, requests for access, and public drives with links to a file or a folder."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+## Access and roles
+
+Every drive has one of three kinds of access. The owner can change it in the drive's settings.
+
+| Kind | Who can open it |
+|---|---|
+| **Private** | Only you, the owner. |
+| **Shared** | You and the people you invite, each with a role. |
+| **Public** | Anyone who has the link **and** the drive's password, without signing in, to read it. You can still invite people with roles. |
+
+<Aside type="note" title="Access is not the password">
+Even a person who is allowed in needs the password of the drive to read it. Give the password to people you trust, separately from the invitation.
+</Aside>
+
+<Figure name="three-kinds-of-access" />
+
+### Roles
+
+| Role | Can |
+|---|---|
+| **Reader** | Open the drive, view and download files. |
+| **Writer** | Everything a reader can, and add, change, move and delete files. |
+| **Admin** | Everything a writer can, and manage people and access. Only the owner makes admins. |
+| **Owner** | Everything, and deletes the drive. |
+
+<Figure name="roles" />
+
+<Figure name="app-drive-settings" />
+
+### Changing the access of a drive
+
+- Making a drive **private** takes everyone off it. You are asked first.
+- Making a **public** drive shared or private ends its public link at once. You are asked first. Making it public again gives a new link.
+
+## Invitations and requests
+
+A drive's **owner** and **admins** decide who is on it. People get in in two ways: you invite them, or they ask.
+
+### Invite someone
+
+<Steps>
+
+1. Open the drive's **settings** and go to **Access**. The drive must be **shared** or **public**.
+2. Under **People with access**, enter the person's **email** and choose a **role**: reader, writer or admin (only the owner can make admins).
+3. Send the invitation.
+
+</Steps>
+
+- If the person **has an Owload account**, they are on the drive at once and see it in their list. A mail tells them.
+- If they **do not**, the invitation waits for them: the mail has a link, and when they sign up with that email and open the link, they are on the drive with the role you gave.
+- You can **change a role** or **remove** a person at any time. Unanswered invitations can be cancelled.
+
+<Aside type="caution" title="The password is not in the invitation">
+An invitation lets a person into the drive's list, but the files stay encrypted. **Give the drive's password separately**, by a channel you trust. Without it they see the drive but cannot read anything.
+</Aside>
+
+### Requests for access
+
+A person who has the address of a drive but is **not on it** sees a page that says so, with the drive's name and a button to **ask for access** (with an optional message). Nothing else about the drive is shown.
+
+- The owner and the admins see the request under **Requests for access**, with the message, and mail about it.
+- They **approve** it (choosing a role, reader by default) or **decline** it.
+- The person is told by mail, and a person who is approved finds the drive in their list.
+
+A person whose request was declined can ask again.
+
+### What people on a drive see
+
+- The **names** of the others and **who read the drive** recently, with when. Never their email addresses.
+- The owner and the admins also see the roles of the others, and the addresses in the settings.
+- Anyone can **leave** a drive they are on from its settings.
+
+## Public drives and links
+
+A **public** drive can be read by anyone who has its link and its password, without an Owload account. Visitors can only **view and download**; they cannot change anything.
+
+### The link and the password
+
+The link takes a visitor to the drive, but it **does not carry the password**: the files stay encrypted until the visitor types the password. Give the password separately, to the people you trust.
+
+Find the link in the drive's settings, under access, and choose **Copy**.
+
+<Figure name="public-link-and-password" />
+
+### A link to one file or folder
+
+In a public drive, choose **Get link** on a file or folder. A dialog shows a link that opens that file or folder first, once the visitor has entered the drive's password.
+
+<Aside type="caution" title="The link opens the whole drive">
+Not only that file. Whoever has the link and the password can see every file and folder in the drive.
+</Aside>
+
+A file's link follows the file when it is renamed or moved. If the file is replaced by a new upload, the old link says that the file no longer exists.
+
+### Making a new link
+
+**New link** in the drive's settings replaces the link.
+
+<Aside type="danger" title="The old link stops working at once">
+For everyone, including the links to single files and folders. The people you invited keep their access, and the password does not change.
+</Aside>
+
+### What the owner can see
+
+The drive shows its owner and the people on it that someone read it: **Anonymous visitor**, the time, and a rough description of the browser (for example "Safari on iOS"). Nothing else is kept about visitors: no address, no cookie, no account.
+
+### Turning it off
+
+Making the drive shared or private ends the public link at once.

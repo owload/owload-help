@@ -1,0 +1,107 @@
+---
+import Search from "@astrojs/starlight/components/Search.astro";
+import SiteTitle from "virtual:starlight/components/SiteTitle";
+import ThemeSelect from "@astrojs/starlight/components/ThemeSelect.astro";
+import { APP_URL, SOURCE_URL } from "../site";
+---
+
+<div class="header">
+  <div class="title-wrapper sl-flex"><SiteTitle {...Astro.props} /></div>
+  <div class="sl-flex search print:hidden"><Search {...Astro.props} /></div>
+  <div class="right sl-flex print:hidden">
+    <a class="plain source sl-hidden md:sl-flex" href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5"></path><path d="M16 7l5 5-5 5"></path></svg>
+      Source code
+    </a>
+    <div class="sl-hidden md:sl-flex"><ThemeSelect {...Astro.props} /></div>
+    <span aria-hidden="true" class="divider sl-hidden md:sl-block"></span>
+    <a class="plain signin sl-hidden md:sl-flex" href={`${APP_URL}/?signin=1`}>Sign in</a>
+    <a class="try" href={APP_URL}>
+      <span class="long">Try Owload</span><span class="short">Try it</span>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+    </a>
+  </div>
+</div>
+
+<style>
+  .header {
+    display: flex;
+    gap: var(--sl-nav-gap);
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+  }
+  .title-wrapper {
+    overflow: clip;
+    padding: 0.25rem;
+    margin: -0.25rem;
+    min-width: 0;
+  }
+  .search {
+    margin-inline-start: auto;
+  }
+  .right {
+    align-items: center;
+    gap: 1rem;
+  }
+  .divider {
+    height: 1.6rem;
+    border-inline-end: 1px solid var(--sl-color-gray-5);
+  }
+  a.plain {
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    color: var(--sl-color-white);
+    text-decoration: none;
+  }
+  a.plain:hover {
+    color: var(--sl-color-gray-3);
+  }
+  a.try {
+    display: inline-flex;
+    white-space: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0 1rem;
+    border-radius: 0.75rem;
+    background: #fadb58;
+    color: #1d1c19;
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a.try:hover {
+    background: #edca44;
+  }
+  a.try .short {
+    display: none;
+  }
+  @media (max-width: 49.99rem) {
+    a.try .long {
+      display: none;
+    }
+    a.try .short {
+      display: inline;
+    }
+  }
+  @media (min-width: 50rem) {
+    :global(:root[data-has-sidebar]) {
+      --__sidebar-pad: calc(2 * var(--sl-nav-pad-x));
+    }
+    .header {
+      display: grid;
+      grid-template-columns: calc(var(--sl-sidebar-width) - var(--sl-nav-pad-x)) minmax(0, 1fr) auto;
+      align-content: center;
+    }
+    .search {
+      margin-inline-start: 0;
+    }
+    .search :global(site-search) {
+      width: 100%;
+      max-width: 32.5rem;
+    }
+  }
+</style>

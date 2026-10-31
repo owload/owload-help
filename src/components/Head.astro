@@ -1,0 +1,74 @@
+---
+import Default from "@astrojs/starlight/components/Head.astro";
+import { ClientRouter } from "astro:transitions";
+---
+
+<Default {...Astro.props}><slot /></Default>
+<!-- Moving between pages swaps the content in place, without loading the whole page again, as in a single-page app. -->
+<!-- The browser's own page transition (a fade out and in) is switched off before the router starts: the swap is instant. -->
+<script is:inline>
+  document.startViewTransition = undefined;
+</script>
+<ClientRouter fallback="swap" />
+<script>
+  // Starlight does not know about the router, so what its own scripts set on a fresh page is put back after each swap.
+  // The sidebar is the part that scrolls on its own; a new one is built for every page and would start at the top.
+  const sidebarPane = () => document.querySelector<HTMLElement>(".sidebar-pane");
+  let savedScroll = 0;
+  let swapped = false;
+
+  document.addEventListener("astro:before-swap", () => {
+    savedScroll = sidebarPane()?.scrollTop ?? 0;
+  });
+
+  document.addEventListener("astro:after-swap", () => {
+    // the theme the reader chose (or the system's) lives in storage; the swapped-in page has not run the script that reads it
+    let stored: string | null = null;
+    try { stored = localStorage.getItem("starlight-theme"); } catch { /* storage may be blocked */ }
+    const theme = stored === "light" || stored === "dark" ? stored : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    document.documentElement.dataset.theme = theme;
+    swapped = true;
+  });
+
+  document.addEventListener("astro:page-load", () => {
+    const pane = sidebarPane();
+    if (!pane) return;
+    // the sidebar stays where it was scrolled to, and the page the reader is on is always in view
+    if (swapped) pane.scrollTop = savedScroll; // not on the first load: Starlight restores its own place then
+    const current = pane.querySelector<HTMLElement>('a[aria-current="page"]');
+    if (!current) return;
+    const paneBox = pane.getBoundingClientRect();
+    const box = current.getBoundingClientRect();
+    if (box.top < paneBox.top || box.bottom > paneBox.bottom) current.scrollIntoView({ block: "center" });
+  });
+
+  // Starlight marks the section whose heading has reached the top of the window, which the sections on the last screen never do.
+  // There, the line a heading has to cross slides down from the top of the window to its bottom as the page runs out.
+  type Contents = HTMLElement & { current: HTMLAnchorElement };
+  const contents = () => [...document.querySelectorAll<Contents>("starlight-toc, mobile-starlight-toc")];
+
+  const markSectionOnLastScreen = () => {
+    const screen = innerHeight;
+    const left = document.documentElement.scrollHeight - screen - scrollY;
+    if (left >= screen || scrollY <= 0) return;
+    const top = (document.querySelector("header")?.getBoundingClientRect().height ?? 0) + 85; // the end of the band Starlight watches
+    const line = top + (screen - top) * (1 - Math.max(left, 0) / screen);
+    for (const toc of contents()) {
+      const reached = [...toc.querySelectorAll("a")].filter((link) => {
+        const heading = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+        return heading && heading.getBoundingClientRect().top <= line;
+      });
+      if (reached.length) toc.current = reached[reached.length - 1];
+    }
+  };
+
+  // Starlight's own check runs after the scroll event and would put its answer back, so each of its changes is checked again.
+  const marks = new MutationObserver(markSectionOnLastScreen);
+  addEventListener("scroll", markSectionOnLastScreen, { passive: true });
+  addEventListener("resize", markSectionOnLastScreen);
+  document.addEventListener("astro:page-load", () => {
+    marks.disconnect();
+    for (const toc of contents()) marks.observe(toc, { subtree: true, attributeFilter: ["aria-current"] });
+    markSectionOnLastScreen();
+  });
+</script>

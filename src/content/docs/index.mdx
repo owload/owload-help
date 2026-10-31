@@ -1,0 +1,101 @@
+---
+title: Owload
+description: "Encrypted cloud file storage: nobody but you can read your files, you choose how they are replicated, and you can work on them together, on our server or on yours."
+---
+
+import Figure from '../../components/Figure.astro';
+import ThreeWays from '../../components/ThreeWays.astro';
+import Pillar from '../../components/Pillar.astro';
+import PillarGrid from '../../components/PillarGrid.astro';
+import StartCard from '../../components/StartCard.astro';
+import StartGrid from '../../components/StartGrid.astro';
+import TryBanner from '../../components/TryBanner.astro';
+
+Owload is encrypted cloud storage built on two ideas: **your files never leave your browser unencrypted**, and **no single provider can lose them**, because one drive can live at several providers at once.
+
+Nobody but you can read your files: not the Owload team, and not the administrator of the server if you host Owload yourself. Your device encrypts each file, its name and the folder structure with a key made from your password, and the server receives only unreadable data. The price of this protection is that **a forgotten password cannot be recovered**: nobody can reset it, and nothing opens the drive without it. Keep it in a password manager.
+
+Set up copies, and a drive also becomes very hard to lose. It can live in up to three storages at once: Owload's, S3 buckets at unrelated providers in different countries, and S3 on your own server. If one of them fails, however reliable it was, your files are still with the others: you make another storage the main one, add a new copy, and carry on. You can do all of this on a live drive. None of these providers can read what it keeps, whether it wants to or not. See [Reliability](./reliability/).
+
+You keep files in **drives**, each with its own password. A drive is private to you, or shared with the people you choose to work with. Photos and videos play in the browser, and text files and Excel spreadsheets open and can be edited there: the file changes on your device, and only encrypted data goes back to the storage.
+
+<Figure name="app-files" />
+
+## The principles behind Owload
+
+Most cloud storage can read what you keep in it, so your privacy depends on the promises and the defences of the company that runs it. Owload takes the opposite approach and keeps the key with you. Encryption comes first, because everything else depends on it: a service that holds only unreadable data has nothing to leak. Working together must not weaken that, so sharing a drive never hands its key to the server. Protection from loss is your decision, not ours: you choose how many copies of a drive exist and where they are. And you are not tied to us, because the same software runs on our servers and on yours.
+
+<PillarGrid>
+  <Pillar tone="dark" icon="lock" title="Nobody can read your files" href="./security/#how-encryption-works" more="How encryption works">
+    Contents, names, folders and the history of changes are encrypted on your device. The key is made from your password and is never sent anywhere, so neither Owload nor the operator of your own server has it.
+  </Pillar>
+  <Pillar icon="users" title="Safe teamwork" href="./sharing/#access-and-roles" more="Access and roles">
+    Invite people as readers, writers or admins, or publish a read-only link. Reading still takes the drive's password, which you pass on yourself. You see who read the drive and when, and who last saved a file before you replace it.
+  </Pillar>
+  <Pillar icon="layers" title="You define the replication" href="./reliability/" more="Reliability">
+    Keep a drive in one storage or in up to three at once: Owload's, your own S3 buckets at different providers, or a mix. Every write goes to all of them. Add, replace or detach a storage on a live drive.
+  </Pillar>
+  <Pillar icon="server" title="Our server or yours" href="./get-started/#choose-your-version" more="Choose your version">
+    Use the web version that Owload runs, connect your own S3 storage to it, or run the whole service yourself from Docker images. All three are free to use.
+  </Pillar>
+</PillarGrid>
+
+## How it works
+
+1. **You open a drive** by typing its password. Your device turns the password into a key, and neither of them is ever sent.
+2. **You add a file.** Your device encrypts it and only then uploads it.
+3. **You open a file.** Your device downloads the encrypted data and decrypts it locally.
+
+<Figure name="where-encryption-happens" />
+
+The server keeps the encrypted data and what it needs to run the service: the title and size of a drive, who may open it and with which role, and when it was opened or written. It has no password and no key, so a breach of the servers or of the storage reveals only unreadable data. The full list is in [What our servers have](./security/#what-our-servers-have).
+
+## Security you can check
+
+A promise about security is worth little if nobody can test it. Owload is built to be checked rather than believed: what protects your files is code and well-known cryptography that anyone can examine. Five things make that possible.
+
+- **The code is open.** Everything that touches your data is public: the client that encrypts your files, the server that stores them, and the pages where you sign in. Anyone can read what happens to a file and to a password.
+- **The cryptography is standard.** Owload uses AES-256, PBKDF2, HKDF and SHA-256, and invents nothing of its own. Anyone who knows these algorithms can review how they are used.
+- **The behaviour is visible.** Encryption happens in your browser, so you can watch it: open the developer tools, upload a file, and see that only unreadable data is sent. With your own S3, you can also look at what lands in the bucket.
+- **The design and its limits are written down.** The architecture and the reasons behind each decision are published, and the threat model lists who could attack and what is still open, not only what is protected.
+- **You can take us out of the picture.** The Docker images are built in public from the same code, and on your own server there is no one else's server to trust.
+
+<StartGrid columns={3}>
+  <StartCard title="Public source code" href="https://github.com/owload" icon="link">The client, the server and the sign-in pages, open at github.com/owload.</StartCard>
+  <StartCard title="Architecture and technologies" href="./architecture/" icon="layers">The parts, the technologies, and why each part is safe.</StartCard>
+  <StartCard title="Threat model" href="./threat-model/" icon="lock">Who could attack, what they could get, and what is still open.</StartCard>
+</StartGrid>
+
+The whole story, with what you can check yourself step by step, is in [Security and transparency](./security/#security-and-transparency).
+
+## What you can do
+
+- **Store any file** in as many [drives](./using-drives/#drives) as you need, with folders, as in a file manager.
+- **Browse photos and videos** in one [Media section](./using-drives/#the-media-section), sorted by the date they were taken.
+- **Open iPhone photos**, including [HEIC and Live Photos](./using-drives/#photos-from-an-iphone).
+- **Play videos** [while they load](./using-drives/#the-video-player), with a buffer you set.
+- **Edit text files and Excel spreadsheets** [in the browser](./using-drives/#editing).
+- **Follow every change** in a file's [version history](./using-drives/#properties-and-history).
+- **Invite people** [by email](./sharing/#invitations-and-requests) with a role, or let them ask for access.
+- **Publish a read-only link** to a [drive, file or folder](./sharing/#public-drives-and-links).
+- **See who read a drive** and when, [including anonymous visits](./sharing/#what-people-on-a-drive-see).
+- **Keep copies** in [up to three storages](./storage/#copies-in-more-than-one-storage), and [restore a drive](./storage/#restore-from-a-storage) from your own bucket.
+- **Set a limit** for [a single drive](./storage/#the-limit-of-one-drive).
+- **Close drives** [one by one or all at once](./using-drives/#open-and-close-a-drive) to remove their keys from the browser.
+- **Check your account:** [signed-in devices and activity](./account/#signed-in-devices-and-activity).
+
+## Three ways to use Owload
+
+The software is the same in all three. What changes is who runs it and where your encrypted files are kept. You can start on the web and [move to your own server](./self-hosting/#move-from-the-web-version) later.
+
+<ThreeWays />
+
+## Where to go next
+
+<StartGrid columns={3}>
+  <StartCard title="Create your first drive" href="./get-started/#create-your-first-drive" icon="rocket">From sign-up to a drive with files in it. 3 GB free.</StartCard>
+  <StartCard title="Connect your own S3" href="./storage/#connect-your-own-s3" icon="layers">Keep your encrypted files in your own bucket, with no limit from Owload.</StartCard>
+  <StartCard title="Run it yourself" href="./self-hosting/" icon="server">Install all of Owload on your own server from Docker images.</StartCard>
+</StartGrid>
+
+<TryBanner />

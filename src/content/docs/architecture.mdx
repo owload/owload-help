@@ -1,0 +1,532 @@
+---
+title: Architecture and technologies
+description: "How Owload is built, down to the folders of the code: what each part contains, what it depends on, how to find your way around it, and why the design is safe."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+This page describes how Owload is built, from the whole system down to the folders and main files of the code. It shows what each part contains, what it is built on, how to find your way around it, and **why the design is safe**. It describes the same system whether you use the web version or your own server.
+
+If you want to read the code, start with [How to find your way around](#how-to-find-your-way-around). The next page, the [threat model](../threat-model/), asks the opposite question: who could attack the system, and what would they get.
+
+## The idea in one picture
+
+```text
+ YOUR DEVICE (holds the password and the keys)
+ ┌─────────────────────────────┐
+ │ Client, in your browser     │
+ │ · derives the keys          │
+ │ · encrypts and decrypts     │
+ │ · builds the file tree      │
+ └──────────────┬──────────────┘
+                │ encrypted bytes only
+ ───────────────┼───────────────  the keys never cross this line
+                ▼
+ ┌─────────────────────────────┐
+ │ API                         │
+ ├──────────────┬──────────────┤
+ │ PostgreSQL   │ S3 storage   │
+ │ access list, │ encrypted    │
+ │ encrypted    │ data blocks  │
+ │ drive log    │              │
+ └──────────────┴──────────────┘
+ Keycloak: sign-in only, no keys
+```
+
+**Everything that can read your files is on your side of the line.** Everything on the other side handles bytes it has no key for. The rest of this page follows from that rule: the client holds all the logic that understands files, and the server is deliberately simple.
+
+## The parts
+
+| Part | What it does | What it knows |
+|---|---|---|
+| **Client** | The web application. Derives keys, encrypts and decrypts, builds the file tree from the drive's log, previews and edits files. | Everything, but only in your browser |
+| **API** | Accounts, drives, access, upload sessions, limits, and the storing of encrypted bytes. | Ciphertext, sizes, titles, who may open what |
+| **PostgreSQL** | Profiles, drives with their **operation log**, access lists, upload sessions, an audit log, the list of storages. | The same as the API |
+| **S3 storage** | The drive's **data**, as 1 MiB blocks, and a copy of the operation log for recovery. | Ciphertext, and the record described in [How a drive is laid out in storage](#how-a-drive-is-laid-out-in-storage) |
+| **Keycloak** | Sign-in (OpenID Connect). The API only checks its tokens. | Your account and its password |
+| **Workers** | A **backfill** worker copies a drive to a storage added later. A **compaction** worker tidies small log chunks in storage. | Ciphertext |
+
+<Figure name="components" />
+
+### Repositories
+
+| Repository | Language | What it holds |
+|---|---|---|
+| [`owload-frontend`](https://github.com/owload/owload-frontend) | TypeScript, React | The client, including the engine that does the encryption, and the landing page |
+| [`owload-backend`](https://github.com/owload/owload-backend) | Python, FastAPI | The API, the database schema and the workers |
+| [`keycloakify`](https://github.com/owload/keycloakify) | TypeScript, React | The look of the sign-in and registration pages, as a Keycloak theme |
+| [`editor-sdk`](https://github.com/owload/editor-sdk) | TypeScript | The contract between the client and its extensions |
+| [`text-editor`](https://github.com/owload/text-editor), [`xlsx-editor`](https://github.com/owload/xlsx-editor) | TypeScript, React | The editors for text files and Excel spreadsheets |
+| [`heic-viewer`](https://github.com/owload/heic-viewer), [`avi-viewer`](https://github.com/owload/avi-viewer) | TypeScript | Viewers for iPhone photos and for AVI video. The AVI viewer is built but not switched on in the client |
+
+### What depends on what
+
+Dependencies go in one direction, so each layer can be read and tested without the ones above it.
+
+```text
+ CLIENT                                       SERVER
+
+ pages, components   what you see             api/routes     HTTP, one module per resource
+       │                                            │
+     hooks           actions of the UI          services     access, limits, storage, activity
+       │                                        │        │
+     stores          state of the app        db/models   S3 client
+       │                                        │        │
+     engine          keys, log, file tree    PostgreSQL  S3 storage
+       │
+   HTTP API  ────────────────────────────►   api/routes
+
+ extensions ──► editor-sdk (types and tests only)
+ client ──► extensions and editor-sdk, each pinned to an exact commit
+```
+
+The **engine** knows nothing about React, and the **server** knows nothing about files. These two boundaries matter the most: the first keeps the cryptography in one small place, and the second keeps it out of the server entirely.
+
+## The client
+
+The client is a single-page application in `owload-frontend`. Everything under `src/` is plain TypeScript and React, built with Vite.
+
+| Folder | What it contains |
+|---|---|
+| [`src/engine`](https://github.com/owload/owload-frontend/tree/main/src/engine) | **The heart of the client:** cryptography, the operation log, the file tree and the calls to the API. No React. See [The engine](#the-engine) |
+| `src/stores` | The state of the application, in Zustand |
+| `src/hooks` | What the screens do, as React hooks |
+| `src/pages` | The screens: my drives, a drive's files, media, new drive, drive settings, profile, activity |
+| `src/components` | The parts of the screens, one folder per area |
+| `src/features` | Two self-contained features: the Media section (`media`) and the video buffer (`video-buffer`) |
+| `src/extensions` | The list of extensions and the code that checks them |
+| `src/public` | The separate application for a public link, with no sign-in |
+| `src/landing` | The landing page, shown to someone who is not signed in |
+| `src/lib` | Small helpers: previews of pictures, links to files, formats of dates and sizes |
+| `src/service-worker.ts` | Serves decrypted video to the browser's player: see [Playing a video](#playing-a-video) |
+| `src-tauri` | The same client in a desktop window, with a small Rust part that saves a file to disk |
+
+### How the application starts
+
+[`src/main.tsx`](https://github.com/owload/owload-frontend/blob/main/src/main.tsx) picks one of three roads:
+
+- **A public link:** `PublicApp`, which needs no account.
+- **Signed in:** `App`, with its pages and routes. [`auth-context-provider.tsx`](https://github.com/owload/owload-frontend/blob/main/src/auth-context-provider.tsx) talks to Keycloak and adds the token to every call to the API.
+- **Not signed in:** the landing page.
+
+The addresses of the API and of Keycloak are not built in. They come from `public/env.js`, which the Docker image writes at start-up, so one image serves any installation.
+
+### Stores
+
+The state lives in one Zustand store, [`stores/files-store.ts`](https://github.com/owload/owload-frontend/blob/main/src/stores/files-store.ts), made of slices:
+
+| Slice | What it holds |
+|---|---|
+| `keys-slice` | The keys of the open drives. Closing a drive removes its key |
+| `drive-stats-slice` | What the app knows about each drive for its card |
+| `files-slice` | The `DriveClient` of the current drive, which is how the screens reach the engine |
+| `upload-slice` | The list of transfers and their progress |
+| `fs-ops-dialog-slice` | The dialogs for moving, copying and deleting |
+| `media-preview-slice` | What is open in the viewer or the editor |
+| `copy-paste-slice` | What was copied or cut |
+
+Only `driveKeys` and `driveStats` are saved to the browser's local storage, under `owload_fstorage`. This keeps a drive open across reloads and tabs, and tabs follow each other through the `storage` event, so a drive closed in one tab closes in all of them. Everything else lives in memory only. Separate small stores hold the profile, the storage usage and the view mode.
+
+### Hooks
+
+The main hook is [`hooks/use-files-store-ops.ts`](https://github.com/owload/owload-frontend/blob/main/src/hooks/use-files-store-ops.ts): it opens a drive, builds its `DriveClient` and connects it to the service worker. The list of what each screen can do is in the other hooks: `use-upload`, `use-close-drives`, `use-drive-access`, `use-sessions`, `use-storage-usage` and so on.
+
+### Components
+
+The folders follow the areas of the screen: `files-area` (the grid and the list of files), `sidebar`, `toolbox` and `toolbox-bottom`, `fs-dialogs`, `media-preview`, `editor-host`, `access`, `storage`, `transfers`, `profile`, `drives`, `drive-logs`, `login`, and `ui` for the shared buttons, fields and dialogs. None of them touches a key or a cipher: they ask a hook or a `DriveClient`.
+
+## The engine
+
+`src/engine` is what makes Owload what it is. It is about 4,000 lines without tests, it has no React in it, and it can be read on its own. [`index.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/index.ts) lists what the rest of the client may use.
+
+```text
+ engine/
+ ├── core/      keys, encryption, streams    the only place that encrypts
+ ├── service/   the log and the file tree    what a drive means
+ ├── backend/   calls to the API and caches  how bytes travel
+ ├── api/       HTTP with retries and errors
+ └── keycloak/  the account API of Keycloak
+```
+
+`service` builds on `core` and on `backend`, and `backend` builds on `api`. `core` depends on nothing but the browser's Web Crypto.
+
+### engine/core: the cryptography
+
+| File | What it contains |
+|---|---|
+| [`enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts) | Key derivation (`generateKey`, `deriveStreamKey`), the encrypting stream (`createEncryptingStream`) and the `AesEncryptor` used for the log |
+| [`sealed-cache.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/sealed-cache.ts) | Encryption of a cached value that is rewritten from time to time, with a fresh random counter each time |
+| [`parallel-blocks.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/parallel-blocks.ts) | Reads a range as several blocks at once and hands them out in order, with bounded memory |
+| [`stream-utils.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/stream-utils.ts) | Web Streams helpers: padding and skipping bytes so that encryption can start at any position |
+| [`constants.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/constants.ts) | The block size (1 MiB), how many blocks travel at once, and timeouts |
+
+All the encryption is done by the browser's own `crypto.subtle`. Owload's code decides which key and which position to use, and it does not implement a cipher.
+
+### engine/service: the log and the file tree
+
+This folder turns a stream of encrypted bytes into folders and files. `DriveClient` is its front door.
+
+| File | What it contains |
+|---|---|
+| [`drive-client-factory.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client-factory.ts) | Derives the drive's keys and assembles everything below |
+| [`drive-client.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client.ts) | One open drive: browse, create folders, move, copy, upload, read, check a checksum |
+| [`fs-operation.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-operation.ts) | The eight operations of the log, and how each is written and hashed |
+| [`fs-state.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-state.ts) | Replays operations into a tree, and checks that each is allowed: names, parents, conflicts |
+| [`fs-tree-node.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-tree-node.ts) | One folder or file of the tree |
+| [`operation-service.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/operation-service.ts) | Saves an operation and confirms that it is in the log, retrying if another writer got in first |
+| `ops-repository.ts`, `serializing-`, `splitting-`, `encrypting-`, `hash-validating-ops-repository.ts` | The pipeline below |
+| `ops-log-analysis.ts` | Finds a file's version history in the log |
+| `drive-action-log.ts` | The type of an entry of the server's audit log |
+
+The log passes through a chain of small classes, each with one job:
+
+```text
+ OperationService             retries until the operation is in the log
+   HashValidatingOpsRepository   links each operation to the previous one, checks the chain
+     SerializingOpsRepository      operation ⇄ text
+       SplittingOpsRepository        a stream of bytes ⇄ single operations
+         EncryptingOpsRepository       plaintext ⇄ ciphertext, at the right position
+           FilesystemBackend             bytes to and from the API
+```
+
+`EncryptingOpsRepository` is the only class here that touches a key, and `FilesystemBackend` below it sees only ciphertext.
+
+### engine/backend: how bytes travel
+
+`FilesystemBackend` in [`filesystem-backend.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/backend/filesystem-backend.ts) is the contract for storing bytes: read and save operations, open and close an upload session, read and save a block, free a range. Its implementations wrap each other:
+
+```text
+ BufferingFilesystemBackend     the video buffer (features/video-buffer)
+   PreloadingFilesystemBackend    joins equal requests for the log
+     CachingFilesystemBackend       keeps encrypted blocks in the browser's cache
+       RestFilesystemBackend          HTTP to the API
+```
+
+`PublicFilesystemBackend` takes the place of the REST one for a public link, with no caching layer. Its write methods refuse, so a public link is read-only in the client as well as on the server.
+
+All of these handle bytes that are already encrypted, so a cache here holds ciphertext.
+
+The other files are plain API clients: `drive-backend.ts` (drives and storages), `access-backend.ts` (people and links), `user-backend.ts` and `storage-usage-backend.ts`. A new drive's two random values are made in `drive-backend.ts`, on your device, and sent with the request that creates it.
+
+### engine/api and engine/keycloak
+
+[`api.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/api/api.ts) wraps axios with retries, timeouts and waiting for the network to return. [`api-error.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/api/api-error.ts) turns a failed call into a sentence for the user. `keycloak/account-api.ts` reads what Keycloak knows about the account's password. The password itself is never typed into the client: it is changed on Keycloak's own page.
+
+## Features and extensions
+
+### The Media section
+
+`src/features/media` builds the single view of photos and videos. It finds them in the file tree of each open drive, reads the date from inside each file (`media-reader.ts`, `media-meta.ts`), and keeps the result in a cache of its own, encrypted with a key for that cache alone. All of this runs in the browser, because the server cannot see which files exist.
+
+### Playing a video
+
+A browser's `<video>` element needs to fetch from an address, but the server only has ciphertext. The [service worker](https://github.com/owload/owload-frontend/blob/main/src/service-worker.ts) bridges the two:
+
+1. The player asks for a range of a video at an address that exists only in this browser.
+2. The service worker catches the request and asks the page for those bytes.
+3. The page reads the blocks, decrypts them and passes them to the service worker, which answers the player.
+
+Decrypted chunks stay in the service worker's memory for smooth seeking. `src/features/video-buffer` adds the buffer you set in the player: it keeps blocks ahead of the play position in the browser's cache, as ciphertext.
+
+### Previews
+
+Thumbnails are made in the browser (`lib/preview-gen.ts`, or the file's extension) and uploaded as ordinary files in the same drive, encrypted like any other. Their names start with a reserved prefix, so the file list hides them. The server cannot tell a thumbnail from a document.
+
+### Extensions
+
+Files are opened and edited by extensions: separate packages that follow one contract, [`editor-sdk`](https://github.com/owload/editor-sdk). This keeps format-specific code out of the client, and it is why adding a format needs one dependency and one line.
+
+- **`src/extensions/registry.ts`** is an explicit list. Nothing is discovered or installed at run time.
+- **`registry-core.ts`** checks each extension's descriptor at start-up.
+- **`components/editor-host`** is the one window for all of them. It decrypts the file, passes the bytes to the editor, and uploads what comes back as a new version.
+
+An extension receives bytes and returns bytes. It never sees a key or a password, and every extension has to pass the SDK's conformance tests, which check that it makes no network requests and uses no browser storage. All extensions are first-party code pinned to an exact commit, and any third-party library inside one is reviewed and pinned too.
+
+## The API
+
+The API in `owload-backend` is a FastAPI application. Its job is narrow: decide who may do what, and move opaque bytes. Its own contract has no concept of a file.
+
+| Folder | What it contains |
+|---|---|
+| [`app/main.py`](https://github.com/owload/owload-backend/blob/main/app/main.py) | Creates the application and attaches the routers |
+| [`app/core`](https://github.com/owload/owload-backend/tree/main/app/core) | Settings (`config.py`) and token checks (`security.py`) |
+| [`app/api`](https://github.com/owload/owload-backend/tree/main/app/api) | `deps.py` (the check of who may open a drive), `errors.py`, and `routes/` |
+| [`app/services`](https://github.com/owload/owload-backend/tree/main/app/services) | The logic: see below |
+| [`app/db`](https://github.com/owload/owload-backend/tree/main/app/db) | The database tables, in SQLAlchemy |
+| [`app/schemas`](https://github.com/owload/owload-backend/tree/main/app/schemas) | The shapes of requests and answers, in Pydantic |
+| `alembic/` | Database migrations |
+| `app/backfill_worker.py`, `app/compaction_worker.py` | The two background workers |
+
+### Routes
+
+Each module is one resource:
+
+| Module | Path | What it does |
+|---|---|---|
+| `drives.py` | `/drives` | Create, list, rename and delete drives |
+| `ops.py` | `/ops` | Append to the log and read it from a position |
+| `sessions.py` | `/sessions` | Reserve room for an upload and close the session |
+| `data.py` | `/data` | Write, read, list and free encrypted bytes |
+| `access.py` | `/drives/<id>/access` | Visibility, people, roles, invitations, the public link |
+| `access_requests.py` | `/drives/<id>/access-request` | Asking for access to a drive |
+| `public.py` | `/public/<token>` | Read-only access through a public link |
+| `storage_targets.py` | `/drives/<id>/storage-targets` | Add, switch and remove the storages of a drive |
+| `drive_restore.py` | `/drives/restore` | Rebuild drives from a bucket |
+| `s3_presets.py` | `/s3-presets` | The list of Owload's storages, without their secrets |
+| `userinfo.py` | `/userinfo` | Profile, picture, sessions, account activity, storage usage |
+
+### Services
+
+| Module | What it contains |
+|---|---|
+| [`storage.py`](https://github.com/owload/owload-backend/blob/main/app/services/storage.py) | `BlockStorage`: blocks, writing to every storage at once, undoing a failed write, recovery copies |
+| `storage_targets.py` | Which storages a drive has, as ready-to-use connections |
+| `storage_errors.py` | Turns a storage's error into a fixed reason, with no names or raw text |
+| [`access.py`](https://github.com/owload/owload-backend/blob/main/app/services/access.py) | Visibility, roles, the public link and its rate limit |
+| `access_summary.py` | Who is on a drive and who read it, for the drive's card |
+| `quota.py`, `stored_bytes.py` | The limits of a plan and of a drive, and counting what is stored |
+| `backfill.py`, `compaction.py` | The work of the two workers |
+| `restore.py` | Finding and rebuilding drives from a bucket |
+| [`secrets.py`](https://github.com/owload/owload-backend/blob/main/app/services/secrets.py) | Encrypts the access keys of storages (Fernet), with a key that is not in the database |
+| `activity.py`, `audit.py` | Sessions, account events, and the log of a drive's actions |
+| `mailer.py` | Invitation emails. They never contain a password or a key |
+| `avatar_image.py` | Checks an uploaded profile picture |
+
+### Database
+
+The tables are in [`app/db/models.py`](https://github.com/owload/owload-backend/blob/main/app/db/models.py).
+
+| Table | What it holds |
+|---|---|
+| `drives` | Title, owner, access list, visibility, the two random values, and the encrypted **log** (`ops_data`) |
+| `upload_sessions` | The byte range reserved for each upload |
+| `drive_storage_targets`, `s3_presets` | The storages of each drive, with encrypted access keys |
+| `drive_action_log` | The audit log of a drive |
+| `users`, `user_avatars` | Name, email and picture |
+| `user_sessions`, `user_events` | Signed-in devices and account activity |
+| `drive_invitations`, `drive_access_requests`, `public_drive_reads` | Sharing |
+
+There is no table of files, and no column that could hold a key: the file tree exists only in the encrypted log.
+
+### Sign-in and access
+
+The client signs the user in with Keycloak (OpenID Connect with PKCE) and sends the token in the `x-access-token` header. Three layers then decide what a request may do:
+
+1. **Who are you?** [`core/security.py`](https://github.com/owload/owload-backend/blob/main/app/core/security.py) checks the token against the realm's public keys, its issuer, audience and expiry. Only asymmetric signatures are accepted.
+2. **Is this session still active?** `require_active_session` in [`api/deps.py`](https://github.com/owload/owload-backend/blob/main/app/api/deps.py) runs on every router except the public one, and refuses a session you signed out from another device.
+3. **What may you do on this drive?** `get_drive_and_role` compares your role (reader, writer, admin, owner) with what the route needs. A drive that does not exist and a drive you are not on answer **the same**, so that existence is not revealed. The one exception is the page where you can ask for access.
+
+**Public drives** are read through a separate set of read-only routes, `/public/<token>/…`, with no sign-in. The token is a 256-bit random value. A wrong, old or made-up one gives the same answer, and reads are rate-limited.
+
+### Sign-in pages
+
+Keycloak renders the sign-in and registration pages itself. The `keycloakify` repository holds a theme for it, built with Keycloakify, so these pages look like Owload but run in Keycloak. Your account password goes to Keycloak and to nothing else. It is a different thing from a drive's password, which goes nowhere.
+
+### Workers
+
+- **Backfill** copies a drive to a storage added later. It finds storages that are waiting, copies what the main storage holds, and marks them active. It can stop at any point and start again.
+- **Compaction** merges the small log chunks in a bucket into larger ones, separately for each storage. The batch is written before the originals are deleted, so a crash leaves the data twice and never loses it.
+
+## A drive is two things
+
+- An **append-only log of operations** (create a folder, upload a file, rename, delete, replace), kept in PostgreSQL as one encrypted byte string that only ever grows. The client reads it and replays it to build the file tree.
+- A **byte-addressable data area.** Uploading a file reserves a range of it, and the file's bytes are written there in 1 MiB blocks. The server does not know which bytes belong to which file: that is in the log, which it cannot read.
+
+The server therefore **cannot list your files**. It can only store, return and measure bytes.
+
+### What the log looks like
+
+After decryption, each entry is a short line of text between two separator bytes:
+
+```text
+"xK3p9A==","kQ2bT7vLmZ4e",5,["/photos/beach.jpg",1048576,2097152,"REPLACE"]
+ └ random  └ hash of the  │  └ what it says: path, where in the data area,
+           previous entry │    how many bytes, what to do on a name conflict
+                          └ the type: 5 is START_UPLOAD
+```
+
+| Operation | What it records |
+|---|---|
+| `MK_DIR` | A new folder |
+| `RM` | Files or folders deleted |
+| `RENAME` | One object renamed or moved |
+| `MV`, `CP` | Several objects moved or copied |
+| `START_UPLOAD` | A file's path, and the range reserved for it |
+| `FINISH_UPLOAD` | The upload is complete, with the file's SHA-256 checksum |
+| `DESCRIPTION` | The drive's description |
+
+The current state of a drive is the result of replaying all of this in order, in `FsState`. A file's identity is the hash of the operation that created it. Version history needs no separate store, because the log already has every version. To open a drive quickly, the client keeps an encrypted snapshot of the tree and replays only what is new.
+
+### How a drive is laid out in storage
+
+```
+data/<drive id>/<block number>                     1 MiB blocks of encrypted data
+ops/<drive id>/<from>-<to>.bin                      a copy of the operation log, in chunks (for recovery)
+ops-batches/<drive id>/batch-<from>-<to>.bin        the chunks merged into larger ones by the compaction worker
+drives/<drive id>/meta.json                         not encrypted: what is needed to restore the drive (its title, owner id, nonces, creation time)
+```
+
+Because the log copy and the metadata are in the bucket too, a drive can be **rebuilt from the bucket alone** if the database is lost: see [Restore from a storage](../storage/#restore-from-a-storage).
+
+A position in the data area maps directly to a block number and an offset in it, with no lookup table. This is why the server needs no index of a drive's contents. Freeing space removes only whole blocks that are entirely inside the freed range.
+
+## The cryptography, step by step
+
+```text
+ password + key nonce
+      │  PBKDF2-SHA-512, 100,000 iterations
+      ▼
+ master key
+      │  HKDF-SHA-256, with the counter nonce and a label for each purpose
+      ├── K_ops            the operation log
+      ├── K_data           file contents
+      ├── K_cacheFsState   ┐
+      ├── K_cacheActLog    │
+      ├── K_cacheOpLog     │ the browser's local caches
+      ├── K_cacheKeys      │
+      └── K_cacheMedia     ┘
+```
+
+1. The **password** never leaves the device. It is turned into a **master key** with **PBKDF2-SHA-512** (100,000 iterations) and a random salt, the *key nonce*, made on your device and stored with the drive. This is `generateKey` in `enc.ts`.
+2. From the master key, **independent keys** are derived with **HKDF-SHA-256**, one for each purpose in the diagram. A key serves one purpose only. This is `deriveStreamKey`, called from `drive-client-factory.ts`.
+3. Data is encrypted with **AES-256 in counter mode**. The counter comes from the **position** of the data in the drive, and the second random value, the *counter nonce*, keeps two drives from sharing a keystream. A copy of a drive under a new id is **refused** for exactly that reason. Counter mode lets the client encrypt and decrypt any range on its own, which is what makes large files and video seeking work.
+4. Every file has a **SHA-256 checksum** of the original, stored in the log and **verified after every full download**. The log is a **hash chain**: each entry carries the fingerprint of the previous one.
+
+The server has no way to check a drive's password, because it never sees one. A wrong password produces a log that does not decode, and the client tells you so.
+
+See [How encryption works](../security/#how-encryption-works) for the plain-language version.
+
+## What happens, step by step
+
+### Opening a drive
+
+1. The client asks the API for the drive (its title and two random values) and for the **log** (`GET /ops/<id>/<from>`), an encrypted byte string.
+2. You type the password. `DriveClientFactory` derives the keys, and the pipeline **decrypts the log** in the browser.
+3. `DriveClient.refresh` replays it into the file tree, checking the chain as it goes.
+
+### Reading a file
+
+1. The tree says where the file's bytes are in the data area.
+2. The client asks for **a range of blocks**, several at once, and the API streams them from the main storage.
+3. The client decrypts them on the way in. For a full download it computes the SHA-256 and compares it with the one in the log.
+
+### Uploading a file
+
+1. The client asks the API to **reserve** room (`POST /sessions`). The API checks your plan and the drive's limit, and answers with a range.
+2. The client appends a `START_UPLOAD` operation to the log, and computes the file's SHA-256.
+3. The client encrypts the file at that position and sends the **encrypted blocks**, several at once. The API writes each to **every** storage of the drive.
+4. The client appends `FINISH_UPLOAD`, with the checksum, and closes the session.
+
+<Figure name="open-and-upload-sequence" />
+
+### Writing to several storages
+
+`BlockStorage.write_range` writes each block to all of a drive's storages in parallel. If one fails, what was written to the others is undone, and the error says which storage failed and why, without naming it. The same goes for each entry of the log, whose copy in storage is written before the database commits. See [Reliability](../reliability/).
+
+## Technologies
+
+| Layer | Technology | Used for |
+|---|---|---|
+| Client | React 19, TypeScript, Vite, Tailwind, shadcn/ui | The web application |
+| Client state | Zustand, React Router | State and navigation |
+| Cryptography | The browser's **Web Crypto API**: AES-256-CTR, PBKDF2-SHA-512, HKDF-SHA-256, SHA-256 | Encryption, key derivation, checksums. The cipher is the browser's own, not a home-made one |
+| Streaming | Web Streams, Service Worker, Cache API | Large files and video, with bounded memory |
+| Sign-in | **Keycloak**, OpenID Connect with PKCE, Keycloakify | Accounts, passwords, Google sign-in, and the look of the pages |
+| API | Python 3.12, **FastAPI**, SQLAlchemy (async), Alembic, Pydantic | The HTTP service and its database migrations |
+| Tokens and secrets | PyJWT, `cryptography` (Fernet) | Checking tokens and encrypting storage keys |
+| Database | **PostgreSQL** 16 | Profiles, drives, the operation log |
+| Storage | **S3 API** (`aioboto3`): AWS S3 and compatible storages | The drive's data blocks |
+| Web server | nginx | Serves the client |
+| Delivery | **Docker** images built by GitHub Actions, with build provenance and an SBOM | Installing and updating |
+| Extensions | `editor-sdk` contract; the HEIC viewer uses `libheif-js` (WebAssembly, pinned) | Opening and editing file formats |
+| Desktop | Tauri 2 | The client in a desktop window |
+
+### How it is built and delivered
+
+- **Images.** A version tag starts [GitHub Actions](https://github.com/owload/owload-frontend/blob/main/.github/workflows/docker.yml), which builds the image, looks inside it for stray secrets and leftovers from the working directory, starts it, and only then publishes it for Intel and ARM, with provenance and an SBOM.
+- **Pinned versions.** The actions are pinned to commits, Python packages to `requirements.lock`, npm packages to `package-lock.json`, and extensions to exact commits.
+- **The API image** runs as an ordinary user. It updates the database on start, then starts the server. The workers use the same image with a different command.
+- **The client image** is nginx with the built files. File names contain the hash of their content, so they can be kept for good, while the front page is checked every time.
+
+## Why this design is safe
+
+Each property below comes from how the system is built, not from a promise. The last column says where to check it.
+
+| Property | How the design gives it | Where to check |
+|---|---|---|
+| **The server cannot read your files** | The keys are made on your device and never sent. The server has no operation that takes a password or a key, and the structure of your files is inside an encrypted log. | `engine/core/enc.ts`; the routes of `app/api/routes` |
+| **The server cannot list your files** | Its data model has no files: only an opaque log and a range of bytes. | `app/db/models.py`, `Drive` |
+| **Each key has one job** | Separate keys come from HKDF, one per purpose, so that the log, the file data and each cache never share a key. | `engine/service/drive-client-factory.ts` |
+| **Cryptography stays in one place** | Only `engine/core` encrypts, and it uses the browser's own implementation. | `crypto.subtle` in `engine/core` |
+| **A stolen database is not a leak** | It holds profiles, access lists and **ciphertext**. The S3 passwords in it are encrypted with a separate key that is not in the database. | `app/services/secrets.py` |
+| **A stolen bucket is not a leak** | It holds encrypted blocks, an encrypted log and a small record with the drive's title and ids. Without the password, your files are noise. | `app/services/storage.py` |
+| **Damage and tampering are noticed** | A file's checksum is checked on a full download, and the log is chained, so a change in the middle breaks everything after it. | `getFileData` in `drive-client.ts`; `hash-validating-ops-repository.ts` |
+| **One compromised part does not give the rest** | The API, the database, the storage and the sign-in service are separate, and none of them holds the keys. | [The parts](#the-parts) |
+| **Roles are checked on every request** | Every route that touches a drive goes through one check of the user's role. | `get_drive_and_role` in `app/api/deps.py` |
+| **Only the identity provider's signature counts** | Tokens are verified against the realm's public keys, and shared-secret and unsigned tokens are refused. | `app/core/security.py` |
+| **Extensions do not get your keys** | An extension receives only the bytes of the file it opens. | `components/editor-host` |
+| **Little to steal** | The server keeps only what it must: sizes, titles, access, and when a drive was used. It keeps **no file names**, no contents, no passwords. | `app/db/models.py` |
+| **Nothing is revealed by probing** | A drive you may not see answers like one that does not exist; wrong, old and made-up public links answer alike; public reads are rate-limited and send no-store, no-referrer and no-index headers. | `app/api/deps.py`; `app/api/routes/public.py` |
+| **Secrets stay out of the images** | The images are checked for stray secrets, the API runs as an ordinary user, and error messages never name your bucket or contain the storage's own text. | `.github/workflows/docker.yml`; `app/services/storage_errors.py` |
+| **You can verify it** | The code is public, the build is public, and you can run the whole service yourself. | [Self-hosting](../self-hosting/) |
+
+<Aside type="caution" title="Safe by design is not safe against everything">
+The one place the design relies on trust is the code your browser receives from the server you open. The [threat model](../threat-model/) explains this, and the other limits, honestly.
+</Aside>
+
+## How to find your way around
+
+### Read the code in this order
+
+1. [`engine/core/enc.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/core/enc.ts): how a password becomes a key, and how bytes are encrypted.
+2. [`engine/service/drive-client-factory.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client-factory.ts): how a drive is assembled. It is short, and it shows the whole client side on one screen.
+3. [`engine/service/fs-operation.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-operation.ts), then [`fs-state.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/fs-state.ts): what the log contains, and how it becomes a tree.
+4. [`engine/service/drive-client.ts`](https://github.com/owload/owload-frontend/blob/main/src/engine/service/drive-client.ts): `refresh`, `uploadFile` and `getFileData` show the full flows.
+5. [`app/api/routes/ops.py`](https://github.com/owload/owload-backend/blob/main/app/api/routes/ops.py), [`sessions.py`](https://github.com/owload/owload-backend/blob/main/app/api/routes/sessions.py) and [`data.py`](https://github.com/owload/owload-backend/blob/main/app/api/routes/data.py): the same flows from the server's side, and how little it does.
+6. [`app/services/storage.py`](https://github.com/owload/owload-backend/blob/main/app/services/storage.py): blocks and writing to several storages.
+
+### Where to look
+
+| You want to understand | Look at |
+|---|---|
+| How a password becomes keys | `generateKey`, `deriveStreamKey` in `enc.ts`; `drive-client-factory.ts` |
+| What happens to a file on upload | `uploadFile` in `drive-client.ts`; `hooks/use-upload.ts`; `app/api/routes/data.py` |
+| How a folder or a rename is stored | `fs-operation.ts`; `fs-state.ts` |
+| How a screen reaches a drive | `stores/files-slice.ts`; `hooks/use-files-store-ops.ts` |
+| How video plays | `service-worker.ts`; `features/video-buffer` |
+| How to add a file format | `extensions/registry.ts`; the [`editor-sdk`](https://github.com/owload/editor-sdk) README |
+| Who may do what on a drive | `app/services/access.py`; `app/api/deps.py` |
+| Replication between storages | `write_range` in `storage.py`; `app/api/routes/storage_targets.py` |
+| Limits | `app/services/quota.py`; `app/api/routes/sessions.py` |
+| Restoring a drive from a bucket | `app/services/restore.py`; `components/storage` |
+| The history of a file | `ops-log-analysis.ts`; `components/drive-logs` |
+
+### Run it and test it
+
+Each repository has a README, and its `CLAUDE.md` describes its structure in more detail.
+
+```bash
+# the client, at http://localhost:5173
+npm install
+npm run dev
+npm test
+```
+
+```bash
+# the API, with PostgreSQL and MinIO in Docker
+docker compose up -d
+alembic upgrade head
+uvicorn app.main:app --reload    # Swagger at http://localhost:8000/docs
+pytest
+```
+
+Tests sit next to the code, in `test` folders on the client and in `tests/` on the server. The engine's tests are a good way to see how each class is meant to be used, and the tests of the API that need PostgreSQL and S3 skip themselves when these are not running.
+
+## Related
+
+- [Security and transparency](../security/#security-and-transparency)
+- [Threat model](../threat-model/)
+- [Reliability](../reliability/)
+- [Self-hosting](../self-hosting/)
+- [API overview](../reference/#api-overview)

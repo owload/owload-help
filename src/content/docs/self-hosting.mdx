@@ -1,0 +1,224 @@
+---
+title: Self-hosting
+description: "Run the whole of Owload on your own server from the Docker images: the application, the database, sign-in and your storage."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, Code, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import compose from '../../snippets/docker-compose.yml?raw';
+import envExample from '../../snippets/env.example?raw';
+import caddyfile from '../../snippets/Caddyfile?raw';
+import addPreset from '../../snippets/add_preset.py?raw';
+
+Self-hosting runs **the same Owload** as the web version on your own server: the web client, the API and its worker, and the database. Nothing of yours is on Owload's servers. The code is public ([github.com/owload](https://github.com/owload)) and the images are published on Docker Hub, so you do not build anything.
+
+## At a glance
+
+- **You end up with** your own Owload at an address of yours, with sign-in through your Keycloak and drives stored in S3 buckets that you choose. Nothing goes through Owload's servers.
+- **The steps:** get the [prerequisites](#what-you-need) ready, [install](#install), [check that it works](#check-that-it-works), then set up [backups](#back-up).
+- **Have ready before you start:** a Linux server with Docker, two DNS names, a Keycloak realm, an S3 bucket with an access key, and (optionally) a mail server.
+
+## What you run
+
+| Part | What it is | Where it comes from |
+|---|---|---|
+| **Client** | The web application, served by nginx | Docker image `owload-frontend` |
+| **API** | Accounts, drives, access, the drive data | Docker image `owload-backend` |
+| **Worker** | Copies a drive to a storage added to it later | The same `owload-backend` image |
+| **Database** | PostgreSQL, in the same Compose project | `postgres:16-alpine` |
+| **Sign-in** | Keycloak (OpenID Connect) | **You provide it** |
+| **Storage** | An S3 bucket for the encrypted drive data | **You provide it** |
+| **HTTPS** | A reverse proxy such as Caddy | **You provide it** |
+
+<Figure name="self-hosted-topology" />
+
+## What you need
+
+- A Linux server with **Docker** and **Docker Compose v2** (the command `docker compose`, with a space; the old `docker-compose` cannot read the file).
+- **Two DNS names** pointing at the server, one for the client (`app.example.com`) and one for the API (`api.example.com`).
+- A **Keycloak** server (a realm and a client are set up below). It can be on another machine.
+- An **S3-compatible bucket** for the drives, and an access key for it.
+- Optional: an **SMTP** server, for the mails that invite people to a drive.
+
+## Install
+
+<Steps>
+
+1. **Make a directory** on the server and, in it, save the two files below: the Compose file as `docker-compose.yml` and the settings as `.env`.
+
+   <Tabs>
+     <TabItem label="docker-compose.yml">
+       <Code code={compose} lang="yaml" title="docker-compose.yml" />
+     </TabItem>
+     <TabItem label=".env">
+       <Code code={envExample} lang="ini" title=".env" />
+     </TabItem>
+   </Tabs>
+
+2. **Fill in the `.env`.** Every value marked `CHANGE` has to be set; the table [below](#the-settings) says what each one is. Then protect the file: `chmod 600 .env`.
+
+3. **Set up Keycloak** as described in [Sign-in with Keycloak](#sign-in-with-keycloak).
+
+4. **Put HTTPS in front.** The client and the API listen on `127.0.0.1` only (ports 8080 and 8000); a reverse proxy publishes them. With Caddy, which gets and renews the certificates itself:
+
+   <Code code={caddyfile} lang="txt" title="Caddyfile" />
+
+   Replace the two names with yours. **Never publish the two ports on all interfaces.**
+
+5. **Start it.**
+
+   ```sh
+   docker compose up -d
+   ```
+
+   The database is created and migrated by the API on its first start. Check it:
+
+   ```sh
+   curl https://api.example.com/healthz
+   ```
+
+   Then open `https://app.example.com` and sign in.
+
+</Steps>
+
+## Check that it works
+
+Do this once after the first start, before anyone else uses it:
+
+1. `docker compose ps` shows every service running, and `curl https://api.example.com/healthz` answers with a success status.
+2. Open `https://app.example.com`, **sign in**, and choose **New drive**. In the storage section pick a preset if you added one, or choose **Custom**, enter your bucket and choose **Test connection**: it must report that it can reach the bucket.
+3. **Create the drive**, add a file, **close the drive**, open it again with the password, and download the file. It is the same file.
+4. In your bucket you now see the drive's objects. Their contents are unreadable, which is the point.
+
+If a step fails, [the table at the end](#if-something-does-not-work) says where to look.
+
+## The settings
+
+### Set these
+
+Each of them has no useful default: the installation does not start, or does not work, without it.
+
+| Setting | What it is |
+|---|---|
+| `POSTGRES_PASSWORD` | The database password. A long random one, without the characters `/ + =` (it goes into a URL): `openssl rand -base64 32 \| tr -d '/+='` |
+| `KEYCLOAK_ISSUER` | The address of the Keycloak realm **exactly as it appears in the tokens** (`https://keycloak.example.com/realms/owload`). A difference of one character makes every sign-in fail. |
+| `APP_KEYCLOAK_URL`, `APP_KEYCLOAK_REALM`, `APP_KEYCLOAK_CLIENT_ID` | Where the browser finds Keycloak, the realm and the client. |
+| `APP_MAIN_BACKEND_URL` | The address of the API as the **browser** reaches it (`https://api.example.com`). |
+| `APP_URL` | The address of the client, used in the links of invitations and of public drives. |
+| `CORS_ALLOW_ORIGINS` | The address of the client, as a JSON list: `["https://app.example.com"]`. |
+| `BACKEND_SECRET_KEY` | Encrypts the S3 access keys kept in the database. Make it once, keep a copy away from the server, and **never change it**: without it every stored S3 key becomes unreadable. |
+
+### Change these if you need to
+
+| Setting | Default | What it is |
+|---|---|---|
+| `BACKEND_VERSION`, `FRONTEND_VERSION` | `latest` | The version of each image. **Pin a number** (for example `0.1.2`) in production: `latest` moves with every release. |
+| `DOCKERHUB_NAMESPACE` | `owload` | The Docker Hub account the images are pulled from. |
+| `KEYCLOAK_AUDIENCE` | `account` | The audience the API expects in the tokens. |
+| `TRUSTED_PROXY_HOPS` | `1` | How many reverse proxies stand in front of the API (`1` for Caddy). Without the right number the API sees the proxy's address instead of the visitor's. |
+| `FREE_PLAN_STORAGE_BYTES` | 3 GiB | How much each user may store in **your** storage presets, in bytes. A user's own S3 is not held by it. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | empty | Optional. Without `SMTP_HOST` no invitation is mailed. |
+
+Make the key for `BACKEND_SECRET_KEY` with:
+
+```sh
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+## Sign-in with Keycloak
+
+Owload does not keep passwords of accounts: people sign in through Keycloak, and the API only checks its tokens. In your Keycloak:
+
+1. Create a **realm** (the examples call it `owload`).
+2. In it, create a **client** for the web client: client ID `front` (the `APP_KEYCLOAK_CLIENT_ID`), a **public** client, standard flow on, **PKCE** with `S256`.
+3. In the client set **Valid redirect URIs** and **Web origins** to the address of the client, `https://app.example.com/*`. Signing out sends the person to the main page, so this address must also be allowed as a **post-logout redirect URI**; the same pattern covers it.
+4. Check that the tokens carry the audience in `KEYCLOAK_AUDIENCE`, the claims `email`, `email_verified` and `name`, and `sid` (the default of current Keycloak).
+5. Sign-in with Google, registration and password reset are settings of Keycloak, not of Owload.
+
+<Aside type="tip">There is a sign-in theme in the Owload style, [keycloakify](https://github.com/owload/keycloakify). It is optional: put its `.jar` into Keycloak's `providers` folder and choose it as the realm's login theme.</Aside>
+
+## Where the drives are stored
+
+Every drive is stored in an S3 bucket. You have two choices, and they can be combined:
+
+- **Let people bring their own S3.** Nothing to do on your side: when a person creates a drive they choose **Custom** and enter their bucket. See [Connect your own S3](../storage/#connect-your-own-s3).
+- **Offer a storage to everyone (a preset).** A preset is a bucket of yours that appears in the list of every person who creates a drive; the limit `FREE_PLAN_STORAGE_BYTES` applies to it. There is no screen for presets: you add one with a script that asks for the values one by one, so the secret key never lands in a shell history.
+
+  <Steps>
+
+  1. Save the script as `add_preset.py` next to `docker-compose.yml`:
+
+     <Code code={addPreset} lang="python" title="add_preset.py" />
+
+  2. Run it inside the API container and answer the questions (a label shown to people, the tier `HOT` or `COLD`, the endpoint, the region, the bucket and the keys):
+
+     ```sh
+     docker compose cp add_preset.py backend:/tmp/add_preset.py
+     docker compose exec backend sh -c 'cd /app && PYTHONPATH=/app python /tmp/add_preset.py'
+     ```
+
+  </Steps>
+
+The bucket must be private, used only by Owload, and the key limited to it with the rights to list, read, write and delete (see the policy in [Connect your own S3](../storage/#connect-your-own-s3)).
+
+## Move from the web version
+
+Your files are encrypted the same way everywhere, so a drive can move to your own server with its password. What moves is the **drive's data in your bucket**:
+
+- **A drive that is already in your own S3 bucket.** On the web version, delete the drive and choose to **keep the data** in the bucket, so that two servers never write to it. On your server choose **New drive**, then **Restore from storage**, enter the bucket's details, and restore the drive. See [Restore from a storage](../storage/#restore-from-a-storage). Each drive still needs its password.
+- **A drive on Owload's storage.** First [add a copy](../storage/#add-a-copy) of it in your own bucket and wait until the copy is complete, then continue as above. Or download the files and upload them to a new drive on your server.
+
+Try it on a small test drive first, so that you see how it behaves before you move the ones that matter.
+
+## Update
+
+<Steps>
+
+1. Take a **database dump** first. A migrated database does not always work with the older image:
+
+   ```sh
+   docker compose exec postgres pg_dump -U owload owload > backup.sql
+   ```
+
+2. Set the new versions in `.env` (`BACKEND_VERSION`, `FRONTEND_VERSION`).
+
+3. Pull and restart. The database is migrated forward when the API starts:
+
+   ```sh
+   docker compose pull && docker compose up -d
+   ```
+
+</Steps>
+
+Update the API and the client **together**: they are released as a pair.
+
+**Going back.** Migrations only go forward. To return to an older version, put the older version numbers in `.env` **and restore the dump from step 1 into a fresh database**: an older image on a migrated database may not start.
+
+## Back up
+
+| What | How |
+|---|---|
+| The database (accounts, drives, access, the list of storages) | `pg_dump`, as above, on a schedule. |
+| The drives' data | In your S3 bucket: use the versioning or replication of your storage provider. |
+| `BACKEND_SECRET_KEY` and `.env` | A copy **away from the server**. Without the key the stored S3 keys cannot be read. |
+
+**Try the restore once**, on a spare machine, before you need it: a backup that has never been restored is a hope, not a backup.
+
+If you lose the database but the bucket is intact, the drives can be brought back from the bucket (**Restore drives** in the application). Every drive still needs its password to open.
+
+## Keep it safe
+
+- Keep `.env`, the dumps and `BACKEND_SECRET_KEY` away from the server's public side; never commit them.
+- Publish only the proxy's ports (80 and 443). The database has no published port.
+- Use a fixed version, update regularly, and read the notes of each release.
+- Owload never has the password of a drive or its key, so there is nothing of that kind to protect on the server, and nothing to recover if a password is lost.
+
+## If something does not work
+
+| What you see | Look at |
+|---|---|
+| Sign-in fails right after the redirect | `KEYCLOAK_ISSUER` is not exactly the `iss` of the tokens; the client's redirect URI does not include the app address. |
+| The browser says a request was blocked (CORS) | `CORS_ALLOW_ORIGINS` is not the JSON list with the exact address of the client, scheme included. |
+| Invitations are not mailed | `SMTP_HOST` is empty or the mail server refuses the connection; check `docker compose logs backend`. |
+| Everyone appears to come from one address | `TRUSTED_PROXY_HOPS` does not match the number of proxies. |
+| The API does not start | `docker compose logs backend`: a missing or wrong value in `.env`, or the database not ready yet. |

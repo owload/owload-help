@@ -1,0 +1,152 @@
+---
+title: FAQ and troubleshooting
+description: "Answers to common questions and what to do when something does not work."
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## FAQ
+
+### About Owload
+
+#### What is Owload?
+
+Cloud file storage where your files, their names and your folders are encrypted on your device before they are uploaded. The server stores only ciphertext. See [How encryption works](../security/#how-encryption-works).
+
+#### Can Owload read my files?
+
+No, and it is built so that it cannot, rather than promising it will not. The keys are made from your drive's password on your device and are never sent to us.
+
+#### How can I verify that my files are encrypted?
+
+The code that encrypts is [public](https://github.com/owload). You can also look at what your browser sends when you upload a file: it is unreadable data, and that is all our servers ever get. Or run your own server: see [Self-hosting](../self-hosting/).
+
+#### How much does it cost?
+
+The web version is **free with 3 GB** of storage. For more, connect your own S3, also free. Paid plans with more space on Owload's storage are coming soon. See [Choose your version](../get-started/#choose-your-version).
+
+### Passwords
+
+#### I forgot the password of a drive. Can you reset it?
+
+No. We never have the password or the key, so nobody can open the drive without it. This is the price of nobody else being able to read it.
+
+#### What is the difference between my account password and a drive's password?
+
+Your **account password** signs you in and can be reset. A **drive's password** encrypts that drive and cannot be reset. See [Profile, plan and password](../account/#profile-plan-and-password).
+
+#### Does changing a drive's password change who can open it?
+
+A drive's password cannot be changed. To move to a new password, create a new drive and move the files. See [Threat model](../threat-model/).
+
+### Files
+
+#### What happens if an upload fails?
+
+The transfer is marked as failed, with the reason, and you can upload the file again. The files already in the drive are not touched, and the space reserved for the failed upload is given back on its own. See [Transfers](../using-drives/#transfers).
+
+#### Which files can I open and edit in Owload?
+
+Pictures, MP4 and MOV videos and HEIC photos open; text files and spreadsheets can be edited. Everything else is stored and downloaded. See [Opening, previewing and editing](../using-drives/#opening-previewing-and-editing).
+
+#### Can I download a whole folder?
+
+Not yet. Download works for one file at a time.
+
+#### Can I close all my drives at once?
+
+Yes. One click closes every open drive, and each asks for its password again the next time you open it.
+
+### Sharing
+
+#### Can I share a drive with someone?
+
+Yes: invite people by email with a role, or make the drive public. Either way they need the drive's **password** to read anything. See [Drives and access](../sharing/#access-and-roles).
+
+#### What does a public link let people do?
+
+Read and download, without an account, if they also have the password. They cannot change anything. See [Public drives and links](../sharing/#public-drives-and-links).
+
+#### Can I link to one file?
+
+In a public drive, yes: **Get link** on a file. The link opens the **whole** drive, with that file first. See [Public drives and links](../sharing/#public-drives-and-links).
+
+#### I removed someone from a drive. Can they still read it?
+
+They lose access through Owload, but if they knew the password and kept a copy of the encrypted data, they can still decrypt that copy. To cut someone off completely, create a new drive with a new password. See [Threat model](../threat-model/).
+
+### Storage
+
+#### Can I use my own S3 storage?
+
+Yes, free of charge: choose **Custom** when you create a drive. See [Connect your own S3](../storage/#connect-your-own-s3).
+
+#### Can I keep copies of a drive in several places?
+
+Yes, a main storage and up to two copies. See [Copies in more than one storage](../storage/#copies-in-more-than-one-storage).
+
+#### What if I delete a drive but kept the data in my bucket?
+
+You can bring it back with **Restore from storage**, with the drive's password. See [Restore from a storage](../storage/#restore-from-a-storage).
+
+### Security
+
+#### What is AI Guard?
+
+An AI agent that keeps watch over our server and its logs and checks that nothing suspicious is going on. See [Security and AI Guard](../security/#security-and-ai-guard).
+
+#### I found a security problem. Where do I report it?
+
+Write to [info@owload.com](mailto:info@owload.com). See [Threat model](../security/#report-a-problem).
+
+#### Where can I ask a question?
+
+Write to [info@owload.com](mailto:info@owload.com).
+
+## Troubleshooting
+
+### I cannot open a drive
+
+| What you see | What to do |
+|---|---|
+| **Wrong password** | Try again. Passwords are case-sensitive. There is no reset: if it is lost, the drive cannot be opened. |
+| **"The drive does not exist" or a page to ask for access** | You are not on this drive, or the address is wrong. Ask the owner to invite you, or use **Ask for access**. |
+| **A public link says it "does not work"** | The drive was made private, or its link was replaced. Ask the owner for the new link. |
+| **I was invited but the drive is not in my list** | Sign in with **the same email** the invitation was sent to, and open the link in the mail. |
+
+### Uploads
+
+| What you see | What to do |
+|---|---|
+| **Upload failed, with a reason** | Read the reason. If a **storage** is not reachable, try again when it is back; nothing is saved when the main storage cannot take the data. See [Transfers](../using-drives/#when-an-upload-fails). |
+| **Refused: a storage limit** | Delete files, or ask the drive's owner to raise or remove the drive's limit. See [Storage and your own S3](../storage/#storage-and-your-own-s3). |
+| **Stuck at "Encrypt"** | A very large file takes a while to encrypt on your device. Keep the tab open. |
+
+### Files and previews
+
+| What you see | What to do |
+|---|---|
+| **A file does not open** | Only some kinds open in Owload ([the list](../using-drives/#opening-previewing-and-editing)). Download the others. |
+| **"Media can not be played"** | Your browser cannot decode the video. Download it and play it on your device. On a first visit in a new browser profile, reload the page once. |
+| **A video pauses to buffer** | Your connection is slower than the video. Wait, press play to start now, or choose a longer buffer. |
+| **A spreadsheet looks different after saving** | The editor can drop what it does not understand. It tells you inside the editor; keep the original. |
+| **A thumbnail is missing** | It is made at upload and when a document is opened; reopen the file. |
+
+### Your own S3
+
+| What you see | What to do |
+|---|---|
+| **"Test connection" fails** | Check the endpoint, region, bucket name and keys, and that the key may list, read, write and delete in that bucket. The bucket must be reachable from the internet. |
+| **"Access denied"** | The key lacks a right: see the policy in [Connect your own S3](../storage/#connect-your-own-s3). |
+| **A copy shows "copying" for a long time** | A large drive takes a while to copy in the background. It becomes active when the copy is complete. |
+
+### Sign-in
+
+| What you see | What to do |
+|---|---|
+| **Signed out on its own** | The session ended, or another device signed it out. Sign in again. |
+| **I do not recognise a device in my list** | **Sign it out**, then **change your account password**. See [Signed-in devices and activity](../account/#signed-in-devices-and-activity). |
+
+### Still stuck?
+
+Write to [info@owload.com](mailto:info@owload.com) with what you did and what you saw. **Never send your drive's password**; nobody from Owload will ever ask for it.

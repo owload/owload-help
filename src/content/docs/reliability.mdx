@@ -1,0 +1,122 @@
+---
+title: Reliability
+description: "Keep a drive at several unrelated providers, so that the loss of one of them costs you no files and none of them can read what it holds."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Even a very reliable provider can fail you. A region goes down, an account is closed by mistake, a bill goes unpaid, a company changes its terms or leaves your market. If all your files are with that one provider, its problem becomes yours.
+
+Owload lets you keep one drive in up to three storages at once, at providers that have nothing to do with each other. If one of them disappears, your files are still with the others. You move the drive to a storage that works, add a new copy, and carry on.
+
+This usually means a choice between reliability and privacy: the more companies hold your data, the more companies can read it. Owload does not ask you to make that choice, because your files are encrypted before they leave your browser. **You can add providers without adding anyone who can read your files.**
+
+## How a drive is spread across storages
+
+A drive has a **main** storage and up to two **secondary** ones. Each holds a full copy of the drive's encrypted data. A storage can be Owload's, a bucket at any [S3 provider that works with Owload](../storage/#which-storage-you-can-use), or S3 on your own server.
+
+<Figure name="copies-of-a-drive" />
+
+- **Every write goes to all the storages at once.** A change is saved only when all of them have accepted it, so a copy does not fall behind.
+- **Reads come from the main storage**, so make the fastest one for you the main one.
+- **You manage the storages on a live drive.** Add a copy, change the main storage or detach a copy at any time, without moving your files by hand and without closing the drive for the people who use it.
+
+In the app, the main storage is labelled **MASTER** and a secondary one **SLAVE**. The controls are in the drive's **settings**, under **Storage targets**. The owner and the drive's admins can use them.
+
+## What each provider can see
+
+Your files reach every storage already encrypted, together with their names and the folder structure. The key is made from your password in your browser and is never sent, so it is in none of the storages and not on Owload's server.
+
+So no provider can read your files, whether it wants to, is hacked, or is ordered to hand them over. The same goes for the administrators of Owload and of your own server. Holding a copy gives them nothing to read.
+
+A provider can still see that the data exists: how much of it there is and when it is used. Each storage also keeps one small record that is **not encrypted**, which [restoring a drive](../storage/#restore-from-a-storage) depends on: the drive's title, the id of the owner's account, the creation date and two technical values that do not reveal the key. Choose a drive title that you do not mind a provider seeing.
+
+A provider can also delete or damage what it holds. That is what the other copies are for. Damage to a file shows up as a failed check when the whole file is [downloaded](../using-drives/#downloading).
+
+The limits of this protection are set out in the [threat model](../threat-model/). In particular, a web app runs the code its server sends, so a compromised server is a separate risk: see [Code delivered by a server](../threat-model/#code-delivered-by-a-server).
+
+## Example: one drive at three unrelated providers
+
+This example keeps one drive in three storages that share no company, no infrastructure and no billing:
+
+| Storage | Role | What it protects from |
+|---|---|---|
+| **AWS S3**, in the US | Main | Your own working copy, close to the people who read it |
+| **Hetzner Object Storage**, in Germany | Secondary | An outage in one country, or a problem with your AWS account |
+| **Owload's storage** | Secondary | A copy that needs no account at any cloud provider |
+
+The copy on Owload's storage counts against your [3 GB](../storage/#the-free-3-gb), so this drive is limited to that size. For a larger one, use a third bucket of your own instead.
+
+### Set it up
+
+<Steps>
+
+1. **Create a bucket and a key at each of your S3 providers,** as described in [Connect your own S3](../storage/#set-it-up). Use a separate key for each one.
+
+2. **Create the drive with AWS as its storage.** On the **New drive** page, choose **Custom** in the storage section, fill in the connection and choose **Test connection**. You can add the other storages here too, with **Add slave storage**.
+
+3. **Add the other storages at any time.** Open the drive's **settings**, then **Storage targets**, and choose **Add slave storage**. Pick **Custom** for Hetzner and **Preset** for Owload's storage.
+
+4. **Wait for the copies to finish.** A drive that already has files is copied in the background, and the storage shows **backfill in progress** with a count. New files go to it from the start. It is a full copy when the label disappears.
+
+</Steps>
+
+<Figure name="storage-targets-three" />
+
+### What happens when a storage fails
+
+Nothing switches over by itself: you decide what to do. Your files are safe in the meantime, in every storage that still works.
+
+| What failed | Opening the drive and its folders | Opening files | Saving changes |
+|---|---|---|---|
+| A **secondary** storage | Works | Works | **Stops** until the storage is back or detached |
+| The **main** storage | Works | **Stops** until the storage is back or another one is made main | **Stops** until the storage is back or detached |
+
+Saving stops on purpose: a write that reached only some of the storages would leave copies that differ. The person saving sees which storage is the problem, main or secondary, and why. In **Storage targets**, each storage shows whether it is connected.
+
+If the failure is short, you can simply wait. No change was saved while the storage was down, so nothing has to catch up when it returns.
+
+<Figure name="storage-target-down" />
+
+### Replace a storage that is gone
+
+Here, AWS was the main storage and it is not coming back. You do not need to contact anyone, and nothing has to be restored from a backup.
+
+<Steps>
+
+1. **Make a working storage the main one.** In **Storage targets**, choose **Make master** on Hetzner. Files open again straight away. The old main storage becomes a secondary one, and saving stays stopped until the next step.
+
+2. **Detach the storage that is gone.** Choose **Delete** on it and confirm. Owload tries to delete the data there, and when the storage cannot be reached it says so. Choose **Force delete anyway**. Saving works again.
+
+   Any data left on that storage stays there, encrypted. If the provider comes back, delete the bucket yourself.
+
+3. **Add a new copy.** Choose **Add slave storage** and connect another provider, for example Backblaze B2. Owload copies the drive to it from the new main storage in the background.
+
+</Steps>
+
+If it was a secondary storage that failed, only steps 2 and 3 are needed.
+
+<Figure name="storage-target-replaced" />
+
+<Aside type="caution" title="Delete means delete">
+On a storage that can be reached, **Delete** permanently removes the drive's data there. Use it on a storage you have given up on, not on one that only needs a rest.
+</Aside>
+
+## Choose storages that fail separately
+
+Three copies help only if one event cannot take out all three.
+
+- **Use different companies,** not three buckets at one provider. A closed account takes every bucket in it.
+- **Use different regions or countries,** so that one outage or one local rule does not reach them all.
+- **Keep the slowest storage in mind.** A write waits for every storage, so one far away or slow makes saving slower for everybody. Reads depend only on the main storage.
+- **Check what it costs.** You pay each provider for what it stores. Providers often charge for data sent out too, which applies to reading from the main storage and to copying a drive to a new one.
+- **Keep three if you can.** After a failure, the drive has one copy fewer until the new one is finished. With only two storages, that is a period with a single copy, and a new copy can only be made while the main storage works.
+
+## What copies do not protect from
+
+- **Your own mistakes.** The copies hold the same state of the drive, so a deleted file is deleted from all of them. The drive's [history](../using-drives/#properties-and-history) keeps earlier versions of replaced files.
+- **A forgotten password.** Every copy is encrypted with the same drive password, and [nobody can recover it](../security/#how-encryption-works).
+- **The loss of Owload's own service.** Your drive list and access rules are in Owload's database, and Owload's server is what connects to your storages. If you cannot use the web version, your files are still in your buckets, and a [self-hosted](../self-hosting/) Owload can [restore them](../storage/#restore-from-a-storage) with the drive's password.
+- **A compromise of Owload's server.** It holds the access keys to your buckets, kept encrypted, and needs them to write. Whoever controls it could not read your files, but could delete them from every bucket at once. If this matters to you, turn on the versioning of your storage provider: see [Your own S3 and your keys](../threat-model/#your-own-s3-and-your-keys).
+- **Silent damage to a copy.** Owload does not compare the copies with each other. Damage in a secondary storage goes unnoticed until that storage becomes the main one and the file is downloaded. In a rare failure, when a write fails and cannot be undone everywhere, the copies can also differ by that one write.

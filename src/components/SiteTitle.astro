@@ -1,0 +1,24 @@
+---
+import Default from "@astrojs/starlight/components/SiteTitle.astro";
+---
+
+<div class="site-title-with-badge">
+  <Default {...Astro.props}><slot /></Default>
+  <span class="docs-badge">Docs</span>
+</div>
+
+<style>
+  .site-title-with-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .docs-badge {
+    border-radius: 0.5rem;
+    background: var(--sl-color-gray-6);
+    padding: 0.2rem 0.55rem;
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    color: var(--sl-color-gray-2);
+  }
+</style>

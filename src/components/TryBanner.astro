@@ -1,0 +1,76 @@
+---
+import { APP_URL } from "../site";
+---
+
+<div class="banner">
+  <span aria-hidden="true" class="ring ring-1"></span>
+  <span aria-hidden="true" class="ring ring-2"></span>
+  <span aria-hidden="true" class="ring ring-3"></span>
+  <div class="text">
+    <h2>Try Owload</h2>
+    <p>Free plan with 3 GB. Your first drive takes a minute to set up.</p>
+  </div>
+  <a href={APP_URL}>
+    Create account
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+  </a>
+</div>
+
+<style>
+  .banner {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    overflow: hidden;
+    margin-top: 2rem;
+    padding: 1.75rem 2rem;
+    border-radius: 1.1rem;
+    background: #fadb58;
+    color: #1d1c19;
+  }
+  .ring {
+    position: absolute;
+    border: 2px solid #edca44;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .ring-1 { width: 18rem; height: 18rem; right: 10%; top: -9rem; }
+  .ring-2 { width: 28rem; height: 28rem; right: 0; top: -14rem; }
+  .ring-3 { width: 38rem; height: 38rem; right: -8%; top: -19rem; }
+  .text {
+    position: relative;
+    min-width: 0;
+    flex: 1 1 18rem;
+  }
+  h2 {
+    margin: 0 0 0.3rem;
+    border: 0;
+    padding: 0;
+    font-size: var(--sl-text-3xl);
+    font-weight: 800;
+    color: #1d1c19;
+  }
+  p {
+    margin: 0;
+    color: #4d3d00;
+  }
+  a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0 1.4rem;
+    border-radius: 0.8rem;
+    background: #1d1c19;
+    color: #fadb58;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a:hover {
+    background: #34332e;
+  }
+</style>

@@ -1,0 +1,72 @@
+---
+title: Account
+description: "Your profile, plan and password, signed-in devices and account activity."
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Profile, plan and password
+
+Open your **profile** from the account menu. It has four parts.
+
+### Personal info
+
+- **Picture.** Upload your own (PNG, JPEG or WebP) or pick one of the **presets**. It is shown to you in the account menu and on your profile; other people see your initials.
+- **Name.** Shown to people on your drives, in place of your email. Choose **Edit** to change it. If you signed up with Google, the name comes from there; after a plain registration it starts empty, and people on your drives then see you as a "Member".
+- **Email.** Used to sign in and for invitations. The other people on a drive do not see it; the owner and the admins of a drive see the addresses of its people in its settings.
+
+### Plan and storage
+
+- Your **plan** (Free: 3 GB) and how much of it you use.
+- **Owload's storage** has a bar of its own against the plan's limit. It counts every drive you **own** that is stored there, once for each storage that holds a copy. Drives shared with you count for their owner.
+- **Your own S3** has a bar of its own and **no limit**: what you keep there is yours and not counted against the plan.
+- While Owload is still counting, the numbers carry a **+** (a part of the whole) and fill in a moment later.
+
+See [Storage and your own S3](../storage/#storage-and-your-own-s3) for the limits.
+
+### Sign-in and security
+
+- **Password.** **Change** takes you to the sign-in service's own page, where you type the new password; Owload itself never sees it. The page shows when it was last changed. This is your **account** password, not a drive's password.
+- **Signed-in devices** and the **activity** of your account: see [Signed-in devices and activity](#signed-in-devices-and-activity).
+
+<Aside type="caution" title="Two kinds of password">
+Your **account password** signs you in and can be changed or reset. A **drive's password** encrypts that drive and **cannot be reset or recovered by anyone**. Changing your account password does not change any drive's.
+</Aside>
+
+### Sign out
+
+**Sign out** ends this device's session and takes you to the main page. Closing drives first removes their keys from the browser: see [Drives](../using-drives/#open-and-close-a-drive).
+
+## Signed-in devices and activity
+
+Owload keeps a short record of your account so that **you** can see where it is used and notice anything you did not do.
+
+### Signed-in devices
+
+Under **Signed-in devices** on your profile you see each device your account is signed in on: a short description ("Chrome on macOS"), the address it connected from, and when it was last seen. This device is marked.
+
+- **Sign out** on another device ends its session. The next time that device talks to Owload it is signed out.
+- Sign out **all other devices** if you suspect somebody else has your account.
+
+<Aside type="note" title="What “sign out” reaches">
+It ends the session in Owload. It does not change your password or end the sign-in with your identity provider, so a device can sign in again if it knows your password. If you think your account is exposed, **change your password** too.
+</Aside>
+
+### Account activity
+
+The **activity** page lists what happened to your account, newest first:
+
+- **Sign-ins and sign-outs**, devices signed out;
+- **profile changes** (name, picture);
+- **drives** you created, restored or deleted, and changes to their **storages**;
+- **access to drives:** that a drive was **opened**, that its files were **read**, that something was **written**. Owload records the fact, not which file: it cannot tell, because the names are encrypted. Many requests in a row are shown as one event with a "from – to" time.
+
+It does **not** include changes of your account password (those happen at the sign-in service) or what you did to individual files; the drive's own log holds that, for the people who have the drive's key.
+
+### Who sees it
+
+Only **you**. Each entry carries the address and the browser the request came from, which are personal data; they are shown only to the account they belong to.
+
+### How long it is kept
+
+Events are kept for **a year** (365 days by default on Owload), sessions unused for 90 days are removed, and an older record is removed the next time you sign in. See [Privacy](../security/#privacy).

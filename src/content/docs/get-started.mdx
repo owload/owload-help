@@ -1,0 +1,120 @@
+---
+title: Get started
+description: "Choose how to use Owload, start on the web with or without your own S3, and create your first drive."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import StartCard from '../../components/StartCard.astro';
+import WhichVersion from '../../components/WhichVersion.astro';
+import StartGrid from '../../components/StartGrid.astro';
+
+## Choose your version
+
+Owload is the same encrypted storage in every version: your files are encrypted on your device before they leave it, and the code that does it is [public](https://github.com/owload). The versions differ in **where the data lives and who runs the server**.
+
+<StartGrid columns={3}>
+  <StartCard title="Web version" href="#web-version" icon="rocket">Sign up and start. 3 GB of storage on Owload, free.</StartCard>
+  <StartCard title="Web version with your own S3" href="#web-version-with-your-own-s3" icon="lock">The same app, your files in your own bucket. Free.</StartCard>
+  <StartCard title="Self-hosted" href="../self-hosting/" icon="link">Run the whole of Owload on your own server, from Docker images.</StartCard>
+</StartGrid>
+
+### Compare
+
+| | **Web version** | **Web version + your own S3** | **Self-hosted** |
+|---|---|---|---|
+| Price | Free | Free | Free (you pay for your server) |
+| Where your encrypted files are | Owload's storage | **Your S3 bucket** | **Your S3 bucket** |
+| Storage | 3 GB | As much as your bucket holds | As much as your bucket holds |
+| Who runs the application | Owload | Owload | **You** |
+| What you set up | Nothing | A bucket and an access key | A server, a database, sign-in (Keycloak), HTTPS |
+| Updates | Automatic | Automatic | You pull a new version |
+| Where your drive list and access rules live | Owload's database | Owload's database | **Your** database |
+
+<Aside type="note" title="What is the same everywhere">
+Passwords and encryption keys never leave your device, and none of the servers (ours or yours) can read your files. Choosing a version changes who stores the encrypted data and who runs the service, not how it is protected.
+</Aside>
+
+<WhichVersion />
+
+### Which one should I take?
+
+- **You want to try it or just use it:** the [web version](#web-version). It takes a minute.
+- **You want more than 3 GB, or want the data in your own storage:** the [web version with your own S3](#web-version-with-your-own-s3). Owload keeps running the service; your encrypted files sit in your bucket.
+- **You want your files to survive the loss of a provider:** add [your own S3](#web-version-with-your-own-s3) at more than one provider, and keep a drive in several storages at once. See [Reliability](../reliability/).
+- **You want nothing of yours on our servers at all, or you need it inside your own network:** [self-host](../self-hosting/). It is more work: you run the server, the database and the sign-in service yourself.
+
+<LinkButton href="#web-version" variant="primary">Start with the web version</LinkButton>
+
+## Web version
+
+The web version needs nothing to install: open Owload in your browser, sign up, and create a drive. Owload runs the service and stores your encrypted files.
+
+- **3 GB of storage, free.** It counts the drives you own that are stored on Owload's storage.
+- **Encryption on your device.** Files, file names and folders are encrypted in your browser before they are uploaded.
+- **Sharing:** invite people with roles, or publish a read-only link. See [Access and roles](../sharing/#access-and-roles) and [Public drives and links](../sharing/#public-drives-and-links).
+- **Opening and editing in the browser:** pictures, iPhone (HEIC) photos and videos can be viewed, and text and spreadsheet files edited. Other files are stored and downloaded. A **Media** section gathers photos and videos.
+
+To start, follow [Create your first drive](#create-your-first-drive). Need more than 3 GB? Use [your own S3](#web-version-with-your-own-s3); paid plans with more space on Owload's storage are coming soon.
+
+## Web version with your own S3
+
+This is the web version with one difference: a drive's data is kept in **an S3 bucket that you own** instead of on Owload's storage. It is free, there is no storage limit from Owload, and you pay your storage provider, nobody else.
+
+S3 is the common standard for cloud storage. Many providers offer it, and it can run on your own server: see [What S3 is](../storage/#what-s3-is) and [Which storage you can use](../storage/#which-storage-you-can-use).
+
+- Files are encrypted in your browser first. What reaches the bucket is unreadable data.
+- Owload's server writes and reads it **in your bucket** with an access key you give it, which it keeps encrypted. Use a key made for this one bucket.
+- You need an S3-compatible storage that is **reachable from the internet** (Owload's server connects to it, not your browser) and a private bucket used only for Owload.
+
+[Connect your own S3: the step-by-step guide](../storage/#connect-your-own-s3)
+
+## Create your first drive
+
+This guide takes you from nothing to a drive with files in it, using the [web version](#web-version). Using your own S3 or your own server changes only the storage step: see [Choose your version](#choose-your-version).
+
+<Figure name="new-drive-form" />
+
+<Steps>
+
+1. **Create an account**
+
+   Choose **Start free** on the main page and sign up with your email (or with Google, where offered). The account only identifies you; it does not unlock your files. Each drive is unlocked by its own password.
+
+2. **Create a drive**
+
+   A drive is a place for files with its own password, storage and access rules. Choose **New drive**, then:
+
+   - give it a **name** and, if you like, a **description**;
+   - set a strong **password**, and save it in a password manager;
+   - choose **who can open it**: only you (private) is a safe start. You can change it later, see [Drives and access](../sharing/#access-and-roles);
+   - keep the default **storage** (Owload's, 3 GB free), or enter your own S3 under **Custom**, see [Storage and your own S3](../storage/#storage-and-your-own-s3).
+
+3. **Add files**
+
+   Drag files into the drive, or use **Upload file**. Each shows two steps, **Encrypt** (on your device) and **Upload**. Create folders from the menu of the drive's area, and move things around by dragging. See [Files and folders](../using-drives/#files-and-folders).
+
+4. **Open them**
+
+   Click a picture, a video, a text file or a spreadsheet to open it in Owload; other files you download. Photos and videos also appear together in the **Media** section. See [Opening, previewing and editing](../using-drives/#opening-previewing-and-editing).
+
+5. **Share, if you want to**
+
+   Invite people by email with a role, or make the drive public for anyone with a link. In both cases, **give the drive's password separately**. See [Invitations and requests](../sharing/#invitations-and-requests) and [Public drives and links](../sharing/#public-drives-and-links).
+
+6. **Close it when you are done**
+
+   **Close** the drive, or **Close all drives**, to remove its keys from this browser. The next time, the password is asked again.
+
+</Steps>
+
+<Aside type="caution" title="Keep the password safe">
+The password encrypts the drive on your device. Owload never receives it, so it **cannot be recovered**.
+</Aside>
+
+## If something goes wrong
+
+- **A drive will not open or says the password is wrong:** [I cannot open a drive](../help/#i-cannot-open-a-drive).
+- **An upload fails or hangs:** [Uploads](../help/#uploads).
+- **Your own S3 bucket is refused:** [Your own S3](../help/#your-own-s3).
+- **You cannot sign in:** [Sign-in](../help/#sign-in).

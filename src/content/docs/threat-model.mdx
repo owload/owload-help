@@ -1,0 +1,111 @@
+---
+title: Threat model
+description: "Who could attack Owload, what each attacker could get, what stops them, and what is still open."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+A threat model says what is being protected, from whom, and how well. This one is written to be **checked**, not to reassure: it lists what the design stops, and just as plainly what it does not. For how the system is built, see [Architecture and technologies](../architecture/).
+
+## What is protected
+
+| Asset | Why it matters |
+|---|---|
+| **File contents** | The point of the service. |
+| **File and folder names, and the folder structure** | They often say as much as the contents. |
+| **Your drive password and keys** | They open everything else. |
+| **Your account** | It gives access to drives shared with you. |
+| **What you did and when** | Metadata can reveal habits. |
+
+## Who could attack
+
+| Attacker | What they can do |
+|---|---|
+| **A network eavesdropper** | See the traffic between your browser and the servers. |
+| **An outsider who breaks into the database or the storage** | Copy everything stored there. |
+| **A curious or compromised operator** (Owload, or whoever runs a self-hosted server) | Read the database and the storage, and run the server's code. |
+| **A storage provider** | Read, change or delete what is in your bucket. |
+| **Another user** | Probe drives they are not on, or hold a link or an old role. |
+| **A former member or a link holder** | Keep a password or a copy of encrypted data after access ended. |
+| **Someone with your device** | Reach what the browser holds while a drive is open. |
+| **A supply-chain attacker** | Slip bad code into a dependency or an extension. |
+
+<Figure name="trust-boundaries" />
+
+## What each could get, and what stops them
+
+| Threat | What the attacker gets | What stops it | What remains |
+|---|---|---|---|
+| **Eavesdropping** | Encrypted bytes | The data is encrypted on your device **before** it is sent, on top of HTTPS | Sizes and timing of requests |
+| **Stolen database** | Profiles, access lists, drive titles, the encrypted log | Contents, names and structure are encrypted; the S3 passwords inside are encrypted with a key kept elsewhere | Titles, who is on which drive, when it was used |
+| **Stolen storage bucket** | Encrypted blocks and an encrypted log; the drive's title, owner id and creation date are readable | They need the drive password | An offline guess at a **weak** password |
+| **Curious or compromised operator** | The same as a stolen database, live | The server has no keys and cannot compute them | **Delivering altered code**: see below |
+| **Dishonest storage provider** | Encrypted bytes; can delete or damage them | Checksums detect damage; [copies in other storages](../reliability/) survive a loss | A provider can still delete your data |
+| **Altered data in storage** | Nothing readable | A file is checked against its checksum on download; the log is hash-chained | See "What the checks do not cover" |
+| **Probing for drives** | Nothing: "not found" looks the same as "not allowed" | Uniform answers; long random public links; rate limits | The page for asking access shows that a drive exists and its name, to a signed-in person |
+| **Guessing a public link** | Nothing | The link is long and random, and carries no password | Anyone who has link **and** password can read |
+| **Stolen or leaked access key to your own S3** | Your encrypted bucket: can delete or damage it | Keys are encrypted at rest on the server; use a key limited to one bucket | The key can still harm availability |
+| **Someone at your unlocked device** | Whatever the browser holds while a drive is open | Close drives; keys are removed on close; sign out | See "Keys kept in your browser" |
+| **Bad code from a dependency** | Whatever the page can see | Exact pinned versions, a written extension contract, review; extensions get no network by contract | **No Content-Security-Policy yet** (see below) |
+
+## What it does not protect against
+
+### A weak password
+
+An attacker who holds the encrypted data can try passwords **offline**, as fast as their hardware allows. The key derivation slows this down (PBKDF2, 100,000 iterations), but it cannot save a short or common password. Use a **long, random** password from a password manager.
+
+### Code delivered by a server
+
+A web application is code the server sends to your browser each time. A server that were **compromised or malicious** could send altered code that steals your password as you type it. This is a limit of **every** web app.
+
+What helps: the code is **public**, so changes can be audited; releases are reviewed and the server is watched ([Security and AI Guard](../security/#security-and-ai-guard)); and you can **self-host** and be your own server. If your threat is the operator of the service, self-host.
+
+### Keys kept in your browser
+
+While a drive is open, its keys are kept in the browser's storage on this device so that you do not retype the password on every page. Your **sign-in tokens** are kept in the same storage. Anyone with physical access to an unlocked device, or any script that runs on the page (for example from a malicious browser extension), can reach them.
+
+- **Close drives** you are not using, and sign out.
+- Do not open drives on computers you do not control.
+
+### No Content-Security-Policy yet
+
+The web client does not yet send a **Content-Security-Policy**. A policy would limit where a script on the page may send data, as a second line of defence if a dependency or an extension were ever compromised. It is **planned**, and until it is there the protection against a bad dependency is review and pinning, not the browser.
+
+### Metadata
+
+Encryption hides **content and names**. The server still sees: how big each drive is, how much and when data is written, **a drive's title**, who is on a drive and in which role, and when it was opened, read or written. It does not see which file.
+
+### Taking someone's access away
+
+Removing a person from a drive stops their access **through Owload**. It does **not** change the drive's password. A person who **knew the password** and has a copy of the encrypted data (for example from a bucket they could read) can still decrypt that copy.
+
+To cut someone off for good, **create a new drive with a new password** and move the files into it. For a drive that was public, assume anyone who had the link and the password could have kept a copy.
+
+### Public drives
+
+A public drive is read by anyone with its **link and password**. The link on its own reveals nothing (the files stay encrypted), but the owner cannot know who has the password. Share the password only with people you trust. See [Public drives and links](../sharing/#public-drives-and-links).
+
+### What the checks do not cover
+
+- **There is no signature on each change.** The drive's log is chained, so tampering in the middle is detected, but a server could, in theory, **drop the most recent entries** or **replay** an older state of the log without the client noticing.
+- **Video streaming is not checksummed.** A file is checked after a full download; a video played in pieces is not.
+- **Authorship is not proven.** The log records who made a change from the server's side, but changes are not signed by their author.
+
+### Your own S3 and your keys
+
+If you use [your own S3](../storage/#connect-your-own-s3), Owload's server holds the access key to your bucket (encrypted). A compromise of that part of Owload could reach your bucket with the key and, because the data is encrypted, could **delete or damage** it, though not read it. Use a dedicated key limited to one bucket, and keep [copies](../storage/#copies-in-more-than-one-storage).
+
+## Out of scope
+
+Owload cannot defend you from **malware on your own device**, from someone who watches you type, or from a password you gave away. No cloud service can.
+
+## Keeping this honest
+
+This page changes when the design does. Each design choice, and what was rejected, is written down in the decision records in [owload-docs](https://github.com/owload/owload-docs). If you find something missing here, write to [info@owload.com](mailto:info@owload.com).
+
+## Related
+
+- [Security and transparency](../security/#security-and-transparency)
+- [How encryption works](../security/#how-encryption-works)
+- [Privacy](../security/#privacy)

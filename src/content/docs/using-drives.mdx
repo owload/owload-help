@@ -1,0 +1,229 @@
+---
+title: Drives and files
+description: "Create and open drives, add, edit and preview files, play photos and videos, and how uploads and downloads work."
+---
+
+import Figure from '../../components/Figure.astro';
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+## Drives
+
+A **drive** is the unit of everything in Owload: a place for files and folders with **its own password, its own storage and its own access rules**. You can have as many drives as you like and keep them apart: work in one, family photos in another, something private in a third.
+
+Because every drive has its own password, opening one drive tells nothing about the others.
+
+<Figure name="anatomy-of-a-drive" />
+
+### My drives
+
+The **My drives** page lists the drives you can open: yours, and the ones shared with you. Each card shows:
+
+- the **kind** of the drive (private, shared, public) and **your role** on it, and who owns it if it is not yours;
+- how much it **stores**, against the limit of your plan when it is on Owload's storage;
+- who has access, and who **read it last** and when;
+- the buttons to **open** it (or to **browse its files** and **close** it, once it is open) and to its **settings**.
+
+<Figure name="app-my-drives" />
+
+### Create a drive
+
+<Steps>
+
+1. Choose **New drive**.
+2. **Name** the drive and, if you like, add a **description**.
+3. Set its **password**. A meter shows how strong it is. Use a long one, and keep it somewhere safe: **it cannot be recovered**, because Owload never has it.
+4. Choose **where the drive is stored**: one of Owload's storages (a **preset**), or **Custom**, your own S3 bucket. See [Storage and your own S3](../storage/#storage-and-your-own-s3). You can add copies in other storages later.
+5. Choose **who can open it**: only you, you and the people you invite, or anyone with a link. You can change it any time. See [Drives and access](../sharing/#access-and-roles).
+6. Confirm. The drive is created and encrypted on your device.
+
+</Steps>
+
+<Aside type="caution" title="Lose the password, lose the drive">
+There is no reset. If you forget a drive's password, nobody can open it, not even us. Use a password manager.
+</Aside>
+
+### Open and close a drive
+
+- **Open** a drive with **Open drive** and its password. The password turns into the drive's keys on your device, and the keys stay in this browser while the drive is open, so you do not type the password again on every page or in a new tab.
+- A **wrong password** does not open the drive. Try again; nothing is locked or counted against you.
+- **Close** a drive when you are done, or use **Close all drives** in the top bar to close every open drive with one click. Closing removes the drive's keys from this browser; the next time the password is asked again.
+- Close your drives on a computer that is not yours, and sign out.
+
+### The drive's settings
+
+Open the settings from the drive's card. The **owner** and, for some parts, the **admins** can:
+
+| Section | What it does |
+|---|---|
+| **Access** | Make the drive private, shared or public; invite people and set their roles; answer requests for access; make a new public link. See [Drives and access](../sharing/#access-and-roles). |
+| **Storage limit** | Set how much the drive may hold. See [Storage and your own S3](../storage/#the-limit-of-one-drive). |
+| **Storage targets** | See where the drive is stored, add a copy in another storage, choose which storage is the main one, remove a copy. See [Copies in more than one storage](../storage/#copies-in-more-than-one-storage). |
+| **Danger zone** | **Delete the drive.** Only the owner can. |
+
+### Delete a drive
+
+Only the **owner** can delete a drive, and it is removed for everyone on it.
+
+- Data on **Owload's storage** is deleted, always.
+- For each storage of **your own S3** the drive uses, you choose: **delete the data** from your bucket, or **keep it**. Kept data stays in your bucket and the drive can be [restored from it](../storage/#restore-from-a-storage).
+
+The deletion is confirmed first and cannot be undone.
+
+## Files and folders
+
+Everything here happens on **your device**: file contents, names and the folder structure are encrypted before they are stored, and decrypted when you open them. What you see is the same as in any file manager.
+
+### Add files
+
+- **Upload.** Use the upload button, or **Upload file** in the context menu of the drive's area, or **drag files** from your computer into the drive.
+- **Folders.** **Create folder** in the context menu. Folders are encrypted too: their names are visible only to people who have the drive's password.
+- **New documents.** The same menu has **New text document** and **New spreadsheet**, which create a file and open it in the editor. The file is added to the drive when you first save it, so closing without saving leaves nothing behind. See [Opening, previewing and editing](#opening-previewing-and-editing).
+
+Each file goes through two steps you can watch in the transfers panel: **Encrypt** and **Upload**. See [Transfers](#transfers).
+
+<Figure name="add-files" />
+
+### Work with files
+
+Right-click a file or folder (on a phone, touch and hold it) for its menu:
+
+| Action | What it does |
+|---|---|
+| **Open** | Opens a folder, a picture, a video or a document in its viewer or editor. |
+| **Open in new tab** | Opens a file or folder in another browser tab. The drive stays open, so no password is asked. |
+| **Download** | Decrypts the file on your device and saves it. It works for one file at a time. |
+| **Rename** | Gives the file or folder a new name. |
+| **Copy** and **Cut**, then **Paste** | Copies or moves items. Choose where to paste from the menu of the folder's area. |
+| **Delete** | Deletes the selected items, after confirmation. |
+| **Properties** | The file's details and its history. See below. |
+
+You can also **drag** items onto a folder to move them, and select several at once: click and drag a frame around them, or hold Shift or Ctrl/Cmd and click. On a phone use **Select** to enter selection mode. **Escape** clears the selection.
+
+<Aside type="note" title="Read-only roles">
+If you are a **reader** of a drive, or you opened a public drive, you can browse, preview and download, but not change anything: the menu only offers what you may do.
+</Aside>
+
+### Grid and list
+
+Switch the drive's view between a **grid** of tiles with previews and a **list** with sizes and details. The choice is kept on this device. In the grid, photos, videos and some documents show a small picture of the file.
+
+### Name conflicts and overwriting
+
+When you move, copy or upload a file to a place where one with that name already exists, you choose what happens: **replace** it or **keep both** (the new one gets a unique name).
+
+Before anything is **deleted or replaced**, Owload shows who last saved the version that will go, and when, so that you do not destroy somebody else's work by accident. If somebody else has an **unfinished upload** at the same path, you are warned about that too.
+
+### Properties and history
+
+**Properties** on a file shows its size, type and date, the **version history** (every time the file was saved or replaced, who did it and when), and the operations that touched it. A file's history belongs to its **current path**: a renamed or moved file starts a new history at the new path.
+
+Replacing a file keeps the previous version in the history. Deleting a file does not erase its past: the record of what happened to a drive is kept in the drive's own encrypted log.
+
+## Opening, previewing and editing
+
+Every kind of file can be **stored, downloaded and shared**. Some kinds also **open inside Owload**, where the file is decrypted in your browser and never leaves it.
+
+### What opens
+
+| Kind | Formats | What you can do |
+|---|---|---|
+| **Pictures** | JPG, JPEG, PNG, GIF, WebP, BMP, TIFF, SVG | View, page through the folder with the arrow keys. |
+| **HEIC photos** | HEIC, HEIF (iPhone photos) | **View only.** They are decoded in your browser; the picture is not changed. |
+| **Videos** | MP4, MOV | Play in the browser, with a player that buffers ahead. See [Photos and videos](#photos-and-videos). |
+| **Text** | TXT | **Edit and save.** UTF-8; up to **10 MiB**. |
+| **Spreadsheets** | XLSX | **Edit and save.** Up to **100 MiB**. |
+
+Other files (PDF, Word documents, presentations, archives, and so on) are stored and downloaded like any other file, but they have no viewer in Owload yet. Download them to open them on your device.
+
+<Aside type="note" title="What a viewer needs from your browser">
+Videos play when your browser can decode them. A video that your browser cannot decode (for example some iPhone videos in HEVC on a browser without support) is still stored and can be downloaded, but may not play.
+</Aside>
+
+### Editing
+
+<Figure name="app-spreadsheet" />
+
+Text files and spreadsheets open in an **editor** that fills the window and has its own title bar and close button.
+
+- **Saving** stores a **new version** of the file. The previous one stays in the file's [history](#properties-and-history).
+- Closing with **unsaved changes** asks what to do: save, discard or cancel.
+- **Nothing is sent to anyone** while you edit: the editor works on the decrypted file in your browser, makes no network requests of its own, and keeps copy and paste inside the editor.
+- The **spreadsheet editor** can drop parts of a file it does not understand when you save. It tells you so inside the editor; for a spreadsheet that matters, keep a copy.
+- A file over the size an editor accepts is not opened there; download it instead.
+
+### Previews in the grid
+
+The grid shows a small picture of a file where one is available: pictures and videos get a thumbnail when they are uploaded, and spreadsheets get one drawn by the editor when they are saved. A file without a preview shows an icon with its type.
+
+Thumbnails are stored **in the drive, encrypted like everything else**, so the server learns nothing from them.
+
+### Open in a new tab
+
+Open a file or folder in a new tab from its menu. The drive is already open on this device, so the new tab does not ask for the password again.
+
+## Photos and videos
+
+Photos and videos are the largest part of most people's files, so every drive has a **Media** section that gathers them in one place, whatever folder they are in. Anyone who can read the drive sees its Media section.
+
+### The Media section
+
+- **Dated by the file itself.** For each photo and video Owload reads the date it was taken from the file's own information (EXIF for photos, the creation time of a video), **in your browser**. The server learns nothing from it. A file that says no date (a screenshot, a picture saved from a website) is placed at the day it was **uploaded**.
+- **Sections** by **day**, by **month**, or **auto**, which is the default: the last two weeks by day and anything older by month, so that a year of rare photos is not a year of headings with one picture under each.
+- **Two layouts.** The **mosaic** is a grid of squares in which a picture can take one cell, two or four, so that even a drive of equal pictures looks like a collage. **Rows** puts pictures in rows of one height, each in its own proportions. Your choice is remembered.
+- **Fast with thousands of photos.** Only what is on the screen is drawn, and tiles show the small pictures stored next to each file, fetched as they come into view.
+- **Paging.** Open a picture and move to the next or previous with the arrow keys or the on-screen arrows. **Escape** closes the preview.
+
+### Photos from an iPhone
+
+- **HEIC photos open as pictures** (view only). Your browser decodes them, so nothing is converted or uploaded again.
+- **Live Photos are one tile.** An iPhone saves a Live Photo as a picture and a short video with the same name (`IMG_1234.HEIC` and `IMG_1234.MOV`). When they are the only two with that name in a folder, Owload shows them as one tile marked **Live**, and a **Live** button in the preview plays the movement over the photo, once and without sound. A browser that cannot decode the video (many iPhone videos are HEVC) says it is not available.
+
+### The video player
+
+<Figure name="app-video" />
+
+Videos play in your browser. Because the file is encrypted in pieces, Owload fetches and decrypts it **piece by piece while you watch**, and keeps a small buffer ahead.
+
+- **Controls:** play and pause, a seek bar that shows what is played and what is already loaded, mute, speed (0.75× to 2×) and full screen.
+- **Keys:** **Space** or **K** play and pause, **←** and **→** jump 5 seconds, **M** mutes, **F** full screen.
+- **Buffer ahead.** You can choose how much to load before and while playing: **Auto** (the default), 30 seconds, 1, 2, 5 or 10 minutes, or **All**. On a slow connection the video **pauses to buffer** instead of stuttering and resumes by itself; press play to start at once.
+- **What is stored.** The buffer holds **encrypted** pieces in the browser's cache, up to 2 GiB; the decrypted video exists only as it plays. On a public link the buffer is dropped when the player closes.
+- **Phones and public links** use the same player.
+
+<Aside type="tip">
+For the smoothest start, upload videos made for streaming (an MP4 whose index is at the start). Videos straight from a camera work too, but the player has to read the end of the file first.
+</Aside>
+
+## Transfers
+
+Owload moves your files in **1 MiB blocks**, several at a time, so that large files and videos transfer quickly and a dropped connection does not mean starting over.
+
+### Uploading
+
+Each upload has **two steps**, and the **transfers panel** shows both for every file:
+
+1. **Encrypt**: the file is encrypted on your device.
+2. **Upload**: the encrypted blocks are sent to the drive's storage.
+
+Photos and videos get their small preview pictures made at the same time; a preview that cannot be made never fails the upload.
+
+You can **cancel** an upload from the panel. Uploads run in the background while you browse, and the button in the toolbar shows the progress of the current batch.
+
+<Figure name="upload-two-steps" />
+
+### When an upload fails
+
+- The file is marked **Failed** in the panel, with **the reason**, and the toolbar button turns red with the number of failed uploads.
+- The reason is explained in plain words: whether the **main** storage or a **secondary** one is the problem, and why (not reachable, access denied, not found). It does not name your storage.
+- It also says whether **anything was saved**. When the main storage could not take the data, it says "Nothing was saved".
+- Upload the file again when the storage is back. The files already in the drive are not touched, and the space reserved for the failed upload is **given back automatically**.
+
+Block uploads are retried by themselves a number of times, but a storage that is **down** is reported after a few attempts instead of hanging forever.
+
+<Aside type="note" title="Storage space">
+Before an upload starts, Owload checks that your plan and the drive's limit have room for it. If not, it is refused with a message that says which limit is in the way. See [Storage and your own S3](../storage/#storage-and-your-own-s3).
+</Aside>
+
+### Downloading
+
+**Download** on a file reads its blocks, decrypts them on your device and checks the file's **checksum** before it hands the file to you. If the stored data was damaged, you get an error instead of a broken file. Only one file is downloaded at a time.

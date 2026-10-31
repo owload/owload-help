@@ -1,0 +1,10 @@
+# An example of the HTTPS reverse proxy for the compose project. Caddy gets and renews the certificates itself.
+# Replace the two names with yours (both must point to this server in DNS), then run Caddy next to the compose project.
+
+app.example.com {
+	reverse_proxy 127.0.0.1:8080
+}
+
+api.example.com {
+	reverse_proxy 127.0.0.1:8000
+}
