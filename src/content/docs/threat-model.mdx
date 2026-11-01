@@ -47,7 +47,7 @@ A threat model says what is being protected, from whom, and how well. This one i
 | **Guessing a public link** | Nothing | The link is long and random, and carries no password | Anyone who has link **and** password can read |
 | **Stolen or leaked access key to your own S3** | Your encrypted bucket: can delete or damage it | Keys are encrypted at rest on the server; use a key limited to one bucket | The key can still harm availability |
 | **Someone at your unlocked device** | Whatever the browser holds while a drive is open | Close drives; keys are removed on close; sign out | See "Keys kept in your browser" |
-| **Bad code from a dependency** | Whatever the page can see | Exact pinned versions, a written extension contract, review; extensions get no network by contract | **No Content-Security-Policy yet** (see below) |
+| **Bad code from a dependency** | Whatever the page can see | Exact pinned versions, a written extension contract, review; extensions get no network by contract; a strict Content-Security-Policy | Inline styles and WebAssembly are allowed (see below) |
 
 ## What it does not protect against
 

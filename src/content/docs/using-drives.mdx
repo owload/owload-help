@@ -31,9 +31,9 @@ The **My drives** page lists the drives you can open: yours, and the ones shared
 
 1. Choose **New drive**.
 2. **Name** the drive and, if you like, add a **description**.
-3. Set its **password**. A meter shows how strong it is. Use a long one, and keep it somewhere safe: **it cannot be recovered**, because Owload never has it.
-4. Choose **where the drive is stored**: one of Owload's storages (a **preset**), or **Custom**, your own S3 bucket. See [Storage and your own S3](../storage/#storage-and-your-own-s3). You can add copies in other storages later.
-5. Choose **who can open it**: only you, you and the people you invite, or anyone with a link. You can change it any time. See [Drives and access](../sharing/#access-and-roles).
+3. Set its **password**: at least 12 characters, and not easy to guess. A meter shows how strong it is, and a weak password is refused. Keep it somewhere safe: **it cannot be recovered**, because Owload never has it.
+4. Choose **who can open it**: only you, you and the people you invite, or anyone with a link. You can change it any time. See [Access and roles](../sharing/#access-and-roles).
+5. Choose **where the drive is stored**: one of Owload's storages (a **preset**), or **Custom**, your own S3 bucket. See [Storage and your own S3](../storage/#storage-and-your-own-s3). You can add copies in other storages later.
 6. Confirm. The drive is created and encrypted on your device.
 
 </Steps>
@@ -49,13 +49,19 @@ There is no reset. If you forget a drive's password, nobody can open it, not eve
 - **Close** a drive when you are done, or use **Close all drives** in the top bar to close every open drive with one click. Closing removes the drive's keys from this browser; the next time the password is asked again. Signing out closes every drive.
 - On a computer that is not yours, sign out when you are done.
 
+### When a drive shows a warning
+
+A yellow notice at the top of a drive means that its log is not what this device expected. It says either **This drive is older than this device last saw it** or **Part of this drive's history cannot be verified**.
+
+You can still view files, but not change them. If you know the reason, for example the drive was restored from a backup, choose **Use the server's version**: this device then reads the drive as the server has it, and changes work again. If you do not know the reason, ask the drive's owner first. See [What the checks do not cover](../threat-model/#what-the-checks-do-not-cover).
+
 ### The drive's settings
 
 Open the settings from the drive's card. The **owner** and, for some parts, the **admins** can:
 
 | Section | What it does |
 |---|---|
-| **Access** | Make the drive private, shared or public; invite people and set their roles; answer requests for access; make a new public link. See [Drives and access](../sharing/#access-and-roles). |
+| **Access** | Make the drive private, shared or public; invite people and set their roles; answer requests for access; make a new public link. See [Access and roles](../sharing/#access-and-roles). |
 | **Storage limit** | Set how much the drive may hold. See [Storage and your own S3](../storage/#the-limit-of-one-drive). |
 | **Storage targets** | See where the drive is stored, add a copy in another storage, choose which storage is the main one, remove a copy. See [Copies in more than one storage](../storage/#copies-in-more-than-one-storage). |
 | **Danger zone** | **Delete the drive.** Only the owner can. |
@@ -77,7 +83,7 @@ Everything here happens on **your device**: file contents, names and the folder 
 
 - **Upload.** Use the upload button, or **Upload file** in the context menu of the drive's area, or **drag files** from your computer into the drive.
 - **Folders.** **Create folder** in the context menu. Folders are encrypted too: their names are visible only to people who have the drive's password.
-- **New documents.** The same menu has **New text document** and **New spreadsheet**, which create a file and open it in the editor. The file is added to the drive when you first save it, so closing without saving leaves nothing behind. See [Opening, previewing and editing](#opening-previewing-and-editing).
+- **New documents.** The same menu has **New text file** and **New spreadsheet**, which create a file and open it in the editor. The file is added to the drive when you first save it, so closing without saving leaves nothing behind. See [Opening, previewing and editing](#opening-previewing-and-editing).
 
 Each file goes through two steps you can watch in the transfers panel: **Encrypt** and **Upload**. See [Transfers](#transfers).
 

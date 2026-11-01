@@ -87,7 +87,7 @@ The password, the master key and the derived keys **never leave your device**. O
 Encryption hides the data; it does not by itself show that someone changed it. Owload adds two checks:
 
 - **Every file has a checksum** (a chain of SHA-256 over the blocks of the file as you uploaded it), stored in the drive's log. After a full download the file is decrypted and **checked against it**. If anything was altered or damaged in storage, you get an error, not a silently broken file.
-- **The drive's log is a chain:** each entry carries the fingerprint of the one before it. Altering an entry in the middle breaks everything after it, and the client notices.
+- **The drive's log is authenticated and chained:** an entry that was changed does not open, and each entry carries the fingerprint of the one before it, so one taken out or moved breaks the chain. The drive then shows a warning and takes no changes until you accept it.
 
 What these checks do **not** cover is described honestly in [Threat model](../threat-model/).
 

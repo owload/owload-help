@@ -40,8 +40,8 @@ The routes under `/public/<token>` need no token.
 
 - **Byte ranges, not files.** The data area is addressed by absolute byte offsets; a file is just a range that the client keeps track of in its encrypted log.
 - **Sessions reserve, then write.** An upload reserves a range with `POST /sessions`, writes blocks at offsets inside it, and finishes the session.
-- **Errors are plain.** A drive that is not found and one you may not see give the same `404`. A refused upload because of a limit is `413` with the code `STORAGE_LIMIT_EXCEEDED`; a storage problem is `502` with a fixed set of reasons and no storage details.
-- **Rate limits** apply to public reads, per client address, so that a link cannot be used to hammer the server.
+- **Errors are plain.** A drive that is not found and one you may not see give the same `404`. A refused upload because of a limit is `413` with the code `STORAGE_LIMIT_EXCEEDED`; a log past its limit is `413` too; a write to the log that states an old length is `409`; a storage problem is `502` with a fixed set of reasons and no storage details.
+- **Rate limits** apply to public reads, per client address, so that a link cannot be used to hammer the server, and also to requests for access and to connection tests.
 
 For the exact request and response bodies, read the [backend README](https://github.com/owload/owload-backend) and the OpenAPI description FastAPI generates for the running service.
 
@@ -59,6 +59,9 @@ The limits of the **hosted** Owload. On a [self-hosted](../self-hosting/) instal
 | Storages per drive | **1 main + up to 2 secondary** |
 | Block size | **1 MiB** |
 | Time an unfinished upload holds its reserved room | **24 hours** *(configurable)* |
+| The log of one drive | **128 MiB** |
+| The logs of all the drives of one owner | **1 GiB** *(configurable)* |
+| One entry of a log | **1 MiB** |
 
 ### Files
 
@@ -69,12 +72,13 @@ The limits of the **hosted** Owload. On a [self-hosted](../self-hosting/) instal
 | Spreadsheet opened in the editor | **100 MiB** |
 | Video buffer in the browser | up to **2 GiB** of encrypted pieces |
 | Thumbnails | 360 px for the grid, 1024 px for large previews |
-| Profile picture | PNG, JPEG or WebP |
+| Profile picture | PNG, JPEG or WebP, up to **10 MiB** |
 
 ### People and drives
 
 | | Limit |
 |---|---|
+| Password of a new drive | At least **12** characters, and not easy to guess |
 | Roles | reader, writer, admin (and the owner) |
 | Readers shown on a drive's card | the **12** most recent |
 | Faces shown in a drive's access summary | **5** people (all of them are counted) |
@@ -92,6 +96,8 @@ The limits of the **hosted** Owload. On a [self-hosted](../self-hosting/) instal
 ### Rate limits
 
 Reads through a **public link** are limited per client address (600 requests a minute on Owload *(configurable)*), so that a link cannot be used to overload the server. Past it, the server answers "too many requests"; wait a minute.
+
+Connection tests of a storage are limited to 30 a minute *(configurable)*, and requests for access are limited for each person.
 
 ## Glossary
 

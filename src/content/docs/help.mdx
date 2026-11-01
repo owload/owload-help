@@ -61,7 +61,7 @@ Yes. One click closes every open drive, and each asks for its password again the
 
 #### Can I share a drive with someone?
 
-Yes: invite people by email with a role, or make the drive public. Either way they need the drive's **password** to read anything. See [Drives and access](../sharing/#access-and-roles).
+Yes: invite people by email with a role, or make the drive public. Either way they need the drive's **password** to read anything. See [Access and roles](../sharing/#access-and-roles).
 
 #### What does a public link let people do?
 
@@ -97,7 +97,7 @@ An AI agent that keeps watch over our server and its logs and checks that nothin
 
 #### I found a security problem. Where do I report it?
 
-Write to [info@owload.com](mailto:info@owload.com). See [Threat model](../security/#report-a-problem).
+Write to [info@owload.com](mailto:info@owload.com). See [Report a problem](../security/#report-a-problem).
 
 #### Where can I ask a question?
 
@@ -113,6 +113,7 @@ Write to [info@owload.com](mailto:info@owload.com).
 | **"The drive does not exist" or a page to ask for access** | You are not on this drive, or the address is wrong. Ask the owner to invite you, or use **Ask for access**. |
 | **A public link says it "does not work"** | The drive was made private, or its link was replaced. Ask the owner for the new link. |
 | **I was invited but the drive is not in my list** | Sign in with **the same email** the invitation was sent to, and open the link in the mail. |
+| **A yellow notice says the drive is older, or that its history cannot be verified** | You can view files, but not change them. See [When a drive shows a warning](../using-drives/#when-a-drive-shows-a-warning). |
 
 ### Uploads
 
@@ -120,6 +121,7 @@ Write to [info@owload.com](mailto:info@owload.com).
 |---|---|
 | **Upload failed, with a reason** | Read the reason. If a **storage** is not reachable, try again when it is back; nothing is saved when the main storage cannot take the data. See [Transfers](../using-drives/#when-an-upload-fails). |
 | **Refused: a storage limit** | Delete files, or ask the drive's owner to raise or remove the drive's limit. See [Storage and your own S3](../storage/#storage-and-your-own-s3). |
+| **A drive has "reached the limit of its history"** | Its log is full, so it takes no more changes. Reading goes on as usual. Move the files to a new drive. See [The limit of a drive's log](../storage/#the-limit-of-a-drives-log). |
 | **Stuck at "Encrypt"** | A very large file takes a while to encrypt on your device. Keep the tab open. |
 
 ### Files and previews
@@ -138,7 +140,7 @@ Write to [info@owload.com](mailto:info@owload.com).
 |---|---|
 | **"Test connection" fails** | Check the endpoint, region, bucket name and keys, and that the key may list, read, write and delete in that bucket. The bucket must be reachable from the internet. |
 | **"Access denied"** | The key lacks a right: see the policy in [Connect your own S3](../storage/#connect-your-own-s3). |
-| **A copy shows "copying" for a long time** | A large drive takes a while to copy in the background. It becomes active when the copy is complete. |
+| **A copy shows "backfill in progress" for a long time** | A large drive takes a while to copy in the background. It becomes active when the copy is complete. |
 
 ### Sign-in
 

@@ -110,6 +110,8 @@ export const FIGURES: Record<string, FigureEntry> = {
   drive ────┼──► Copy 1 (your S3, provider A)
   writes    └──► Copy 2 (your S3, provider B)
             ┄┄► a copy added later: filled in the background`,
+    src: "/figures/copies-of-a-drive.webp",
+    alt: "A drive called Work drive, holding encrypted blocks, on the left. Every write goes from it to three storages: the main storage, Owload's or your S3, and Copy 1 and Copy 2, your S3 at providers A and B. Reads come back from the main storage only. Copy 2 is marked as down, and a note says that writes stop until it is back, so the copies never drift apart. A dashed line leads to a new copy, added later, whose existing data is copied over in the background.",
   },
 
   "restore-from-bucket": {
@@ -120,25 +122,30 @@ export const FIGURES: Record<string, FigureEntry> = {
   ├ data/…  encrypted blocks  ──Restore──►  [ Drive ]  🔒 password needed
   ├ ops/…   copy of the log
   └ drives/…/meta.json          damaged? ──► not restored`,
+    src: "/figures/restore-from-bucket.webp",
+    alt: "On the left, your bucket, my-owload, with three folders: data, holding encrypted blocks; ops, holding a copy of the change log; and drives, holding a meta.json file for each drive. An arrow labelled Restore leads to My drives, where Work drive appears, closed and restored from my-owload. It is still encrypted, and the drive's password opens it with the Open drive button. A dashed red arrow labelled damaged? leads to a crossed-out drive: something in the bucket is missing, so the drive is left out instead of being silently patched.",
   },
 
   "password-to-keys": {
     caption: "From a password to the keys. Everything in this chain stays on your device.",
     brief:
-      "A left-to-right chain: Password + salt → PBKDF2-SHA-512, 100,000 rounds ('slow on purpose') → Master key → HKDF-SHA-256 → three keys: Log key, Data key, Cache keys ('one key, one purpose') → AES-256-CTR, with the counter described as 'position in the drive + a random value per drive'. A dashed bracket around the whole chain: 'never leaves your device'.",
-    sketch: `  password + salt ─► PBKDF2-SHA-512 ─► master key ─► HKDF-SHA-256 ─┬─► log key
-                     100,000 rounds                                 ├─► data key ─► AES-256-CTR
+      "A left-to-right chain: Password + salt → PBKDF2-SHA-512, 1,000,000 iterations ('slow on purpose') → Master key → HKDF-SHA-256 → three kinds of key ('one key, one purpose'): Log key → AES-256-GCM, each entry with its own random nonce; File key, one for each file, made with a random value for that upload → AES-256-CTR, the counter running from the start of the file; Cache keys, for the browser's local caches. A dashed bracket around the whole chain: 'never leaves your device'.",
+    sketch: `  password + salt ─► PBKDF2-SHA-512 ─► master key ─► HKDF-SHA-256 ─┬─► log key ─────► AES-256-GCM
+                     1,000,000 iterations                           ├─► file key ────► AES-256-CTR
+                                                                    │   (one per file, random value per upload)
                                                                     └─► cache keys
   ╰──────────────── all of this stays on your device ─────────────────╯`,
   },
 
   "hash-chain": {
-    caption: "Each entry of the log carries the fingerprint of the one before it, so a change in the middle breaks everything after it.",
+    caption: "A changed entry of the log does not open, and each entry carries the fingerprint of the one before it, so one taken out breaks the chain.",
     brief:
-      "A row of four log entries (op 1 … op 4), each box showing 'hash of the previous one' with an arrow to its left neighbour. Change op 2 (red) and show op 3 and op 4 turning red as the check fails. Below, a file with its SHA-256 stored in the log, and 'checked after every full download' (and a muted note: 'video played in pieces is not checked').",
+      "A row of four log entries (op 1 … op 4), each box with a small seal ('authenticated') and 'hash of the previous one', with an arrow to its left neighbour. Op 2 altered (red): its seal is broken, 'does not open'. Op 2 taken out (a second row): op 3 no longer follows op 1, 'broken chain'. Both lead to 'the drive shows a warning and takes no changes'. Below, a file with its checksum (a chain of SHA-256 over its blocks) stored in the log, and 'checked after every full download'.",
     sketch: `  [op 1] ◄─ [op 2 + hash(1)] ◄─ [op 3 + hash(2)] ◄─ [op 4 + hash(3)]
-                  ▲ altered  →  op 3 and op 4 fail the check
-  file ── SHA-256 in the log ── compared after a full download`,
+                  ▲ altered: does not open
+  [op 1]  ✕ op 2 taken out  [op 3 + hash(2)]   the chain breaks
+                  ──► a warning, no changes until you accept it
+  file ── checksum in the log ── compared after a full download`,
   },
 
   "components": {
@@ -155,13 +162,14 @@ export const FIGURES: Record<string, FigureEntry> = {
   "open-and-upload-sequence": {
     caption: "What happens on opening a drive and on uploading a file.",
     brief:
-      "Two sequence diagrams side by side (stacked on a phone), with three lanes each: Client, API, Storage. Opening: get the drive and the log; you type the password; keys derived and the log decrypted locally; ask for a range of blocks; blocks come back and are decrypted and checked. Uploading: encrypt and reserve room; send encrypted blocks (several at once); the API writes each to every storage; append the encrypted 'file uploaded' operation to the log; close the session. Use the same colours as the figure above: yellow for steps that happen on the device.",
+      "Two sequence diagrams side by side (stacked on a phone), with three lanes each: Client, API, Storage. Opening: get the drive and the log; you type the password; keys derived and the log decrypted locally; ask for a range of blocks; blocks come back and are decrypted and checked. Uploading: reserve room; append START_UPLOAD with the file's random salt to the log; encrypt and send blocks (several at once); the API writes each to every storage; append FINISH_UPLOAD with the checksum; close the session. Use the same colours as the figure above: yellow for steps that happen on the device.",
     sketch: `  OPEN                              UPLOAD
   Client      API     Storage       Client      API      Storage
    ─ get drive + log ─►              ─ reserve room ─►
-   type password                     ─ blocks ─────────► write to every storage
-   derive keys, decrypt log          ─ append operation ─►
-   ─ range of blocks ─►              ─ close session ────►
+   type password                     ─ START_UPLOAD (salt) ─►
+   derive keys, decrypt log          ─ encrypted blocks ─► write to every storage
+   ─ range of blocks ─►              ─ FINISH_UPLOAD (checksum) ─►
+                                     ─ close session ────►
    decrypt, check ◄──────`,
   },
 
@@ -191,6 +199,8 @@ export const FIGURES: Record<string, FigureEntry> = {
   ┌ MASTER  AWS S3 · us-east-1         ✓ Connected ┐
   ┌ SLAVE   Hetzner · Germany          ✓ Connected ┐
   ┌ SLAVE   Owload's storage           ✓ Connected ┐`,
+    src: "/figures/storage-targets-three.webp",
+    alt: "The Storage targets section of a drive, with one main storage and two copies. AWS S3, in us-east-1, bucket owload-example-main, is labelled MASTER. Hetzner Object Storage, in Germany, fsn1, bucket owload-example-copy, and Owload's storage, managed by Owload, are each labelled SLAVE. All three show Connected, and each has a menu.",
   },
   "storage-target-down": {
     caption: "The main storage cannot be reached. The others still hold the whole drive.",
@@ -200,6 +210,8 @@ export const FIGURES: Record<string, FigureEntry> = {
   ┌ MASTER  AWS S3 · us-east-1   ✗ Connection failed ┐
   ┌ SLAVE   Hetzner · Germany          ✓ Connected ┐  [ Make master ]
   ┌ SLAVE   Owload's storage           ✓ Connected ┐  [ Make master ]`,
+    src: "/figures/storage-target-down.webp",
+    alt: "The Storage targets section with one of three storages unreachable. AWS S3, labelled MASTER, is marked in red: The storage could not be reached. Hetzner Object Storage and Owload's storage, each labelled SLAVE, show Connected, with a Make master button. Below, under Uploads, beach.jpg is marked Failed, with the reason: The main storage is not reachable or not responding. Nothing was saved.",
   },
   "storage-target-replaced": {
     caption: "After the replacement: Hetzner is the main storage, and a new copy is being made at Backblaze.",
@@ -209,6 +221,8 @@ export const FIGURES: Record<string, FigureEntry> = {
   ┌ MASTER  Hetzner · Germany          ✓ Connected ┐
   ┌ SLAVE   Owload's storage           ✓ Connected ┐
   ┌ SLAVE   Backblaze B2   backfill in progress (312/840) ┐`,
+    src: "/figures/storage-target-replaced.webp",
+    alt: "The Storage targets section after the replacement, with one main storage and two copies. Hetzner Object Storage, in Germany, fsn1, is now labelled MASTER and shows Connected. Owload's storage, labelled SLAVE, shows Connected. Backblaze B2, in eu-central-003, bucket owload-example-new, labelled SLAVE, shows backfill in progress, 312 of 840, with a progress bar. AWS S3 is no longer listed.",
   },
   "new-drive-form": {
     caption: "The New drive page: a name and a password, who can open the drive, and the storage.",
@@ -240,6 +254,8 @@ export const FIGURES: Record<string, FigureEntry> = {
   Region [ us-east-1 ]   Bucket [ my-owload ]
   Access key [ ........ ]  Secret key [ •••••• ]
   [ Test connection ]  ✓ connected`,
+    src: "/figures/connect-own-s3-form.webp",
+    alt: "The Storage section of the New drive page, marked MASTER, with Custom chosen instead of Preset. Six numbered badges show the order: 1 Endpoint URL, set to https://s3.amazonaws.com; 2 Region, us-east-1; 3 Bucket, my-owload; 4 Access key, an example value; 5 Secret key, hidden behind dots; and 6 the Test connection button, with the result Connected beside it. A Use SSL checkbox is ticked.",
   },
   "app-files": {
     caption: "A drive in the grid, with the menu of a file and the toolbar for the selected items.",

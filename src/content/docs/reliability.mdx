@@ -17,8 +17,6 @@ This usually means a choice between reliability and privacy: the more companies 
 
 A drive has a **main** storage and up to two **secondary** ones. Each holds a full copy of the drive's encrypted data. A storage can be Owload's, a bucket at any [S3 provider that works with Owload](../storage/#which-storage-you-can-use), or S3 on your own server.
 
-<Figure name="copies-of-a-drive" />
-
 - **Every write goes to all the storages at once.** A change is saved only when all of them have accepted it, so a copy does not fall behind.
 - **Reads come from the main storage**, so make the fastest one for you the main one.
 - **You manage the storages on a live drive.** Add a copy, change the main storage or detach a copy at any time, without moving your files by hand and without closing the drive for the people who use it.

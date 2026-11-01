@@ -409,7 +409,7 @@ See [How encryption works](../security/#how-encryption-works) for the plain-lang
 
 1. The client asks the API for the drive (its title and two random values) and for the **log** (`GET /ops/<id>/<from>`), an encrypted byte string.
 2. You type the password. `DriveClientFactory` derives the keys, and the pipeline **decrypts the log** in the browser.
-3. `DriveClient.refresh` replays it into the file tree, checking the chain as it goes.
+3. `DriveClient.refresh` replays it into the file tree, checking the chain as it goes. If an entry is broken, or one this device saw is gone, the drive shows a warning and writes nothing until you accept it.
 
 ### Reading a file
 
@@ -468,7 +468,7 @@ Each property below comes from how the system is built, not from a promise. The 
 | **Cryptography stays in small places** | Encryption uses the browser's own implementation, in `engine/core` and in the frames of the log. | `crypto.subtle` in `engine/core`; `framed-ops-repository.ts` |
 | **A stolen database is not a leak** | It holds profiles, access lists and **ciphertext**. The S3 passwords in it are encrypted with a separate key that is not in the database. | `app/services/secrets.py` |
 | **A stolen bucket is not a leak** | It holds encrypted blocks, an encrypted log and a small record with the drive's title and ids. Without the password, your files are noise. | `app/services/storage.py` |
-| **Damage and tampering are noticed** | A file's checksum is checked on a full download, and each entry of the log is authenticated. | `getFileData` in `drive-client.ts`; `framed-ops-repository.ts` |
+| **Damage and tampering are noticed** | A file's checksum is checked on a full download, each entry of the log is authenticated and chained, and a device notices when an entry it saw is gone. | `getFileData` and `refresh` in `drive-client.ts`; `framed-ops-repository.ts` |
 | **One compromised part does not give the rest** | The API, the database, the storage and the sign-in service are separate, and none of them holds the keys. | [The parts](#the-parts) |
 | **Roles are checked on every request** | Every route that touches a drive goes through one check of the user's role. | `get_drive_and_role` in `app/api/deps.py` |
 | **Only the identity provider's signature counts** | Tokens are verified against the realm's public keys, and shared-secret and unsigned tokens are refused. | `app/core/security.py` |
