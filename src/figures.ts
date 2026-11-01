@@ -46,16 +46,20 @@ export const FIGURES: Record<string, FigureEntry> = {
   │ │ files · folders · history   (all encrypted) │   │
   │ └─────────────────────────────────────────────┘   │
   └───────────────────────────────────────────────────┘`,
+    src: "/figures/anatomy-of-a-drive.webp",
+    alt: "A drive called Family photos, drawn as a card. Its title is visible to the server. The password is never stored anywhere, not even encrypted: only you know it. Storage, a main one and up to two copies, and People, each with a role of reader, writer, admin or owner, are visible to the server. Files and folders, with their contents and names, and History, the log of changes, are encrypted on your device, so the server sees only bytes.",
   },
 
   "upload-two-steps": {
-    caption: "An upload has two steps, and both are on your device's side of the line until the data is encrypted.",
+    caption: "An upload has two steps: the file is encrypted on your device, and only encrypted blocks leave it.",
     brief:
       "A horizontal flow: File → '1 Encrypt (on your device)' → '2 Upload (1 MiB blocks, several at a time)' → Storage. Under it, a mock of the transfers panel with two progress bars, one per step. A small side branch from the file: 'preview picture made at the same time (never fails the upload)'.",
     sketch: `  file ─► [1 Encrypt] ─► [2 Upload  ▪▪▪▪ 1 MiB blocks] ─► storage
               │
               └─ preview picture (optional)
   transfers panel:  Encrypt ████████  Upload ████░░░░`,
+    src: "/figures/upload-two-steps.webp",
+    alt: "On your device, beach.jpg, 5 MiB and plain, goes through step 1, Encrypt, done on the device before anything leaves it, and step 2, Upload, in blocks of 1 MiB, several at a time: two sent, two in flight, one waiting. A preview picture is made at the same time; it is optional, and if it fails the upload goes on. Only encrypted blocks cross the line to Storage. Below, the Transfers panel shows Encrypt done and Upload at 2 of 5 blocks.",
   },
 
   "three-kinds-of-access": {
@@ -66,6 +70,8 @@ export const FIGURES: Record<string, FigureEntry> = {
    only you         you + invited       anyone with the link
                     people, with roles  (read only, no account)
    ───────── the drive's password is needed in all three ─────────`,
+    src: "/figures/three-kinds-of-access.webp",
+    alt: "Three cards side by side, each saying who can open a drive. Private: only you. Shared: you and the people you invite, each with a role of owner, admin, writer or reader. Public: anyone with the link, read only, with no account needed. Each card ends in the same badge, Password needed: the drive's password is needed in all three.",
   },
 
   "roles": {
@@ -79,6 +85,8 @@ export const FIGURES: Record<string, FigureEntry> = {
    │ Reader │ │ add,   │ │ access   │
    │ view   │ │ change │
    └────────┘ └────────┘`,
+    src: "/figures/roles.webp",
+    alt: "Four steps rising from fewer rights to more. Reader can view and download. Writer adds adding, changing and deleting files. Admin adds managing people and access, and a note says that only the owner makes admins. Owner adds deleting the drive.",
   },
 
   "public-link-and-password": {
@@ -90,6 +98,8 @@ export const FIGURES: Record<string, FigureEntry> = {
                                               ▼
                                        files, decrypted locally
   link alone: nothing readable       password alone: nowhere to go`,
+    src: "/figures/public-link-and-password.webp",
+    alt: "Four steps. The owner copies the link and sends the password separately. In the visitor's browser, the visitor opens the link with no account and no sign-in; the page asks for the password, which is typed and used only in that browser and never sent to the server; the files appear, decrypted there. Two notes below: the link alone gives nothing readable, because it does not contain the password, and the password without the link opens nothing.",
   },
 
   "copies-of-a-drive": {
@@ -216,6 +226,9 @@ export const FIGURES: Record<string, FigureEntry> = {
     sketch: `  files grid                      transfers
   [pic] [pic] [doc]               photo.jpg   Encrypt ✓  Upload ███░░
                                   report.xlsx Encrypt ██░░░`,
+    src: "/figures/add-files.webp",
+    frame: true,
+    alt: "A drive open in the grid view, with the transfers panel over it, titled Uploading 9 files, Encrypted on this device, then uploaded. One file is at 95% of Encrypt and 39% of Upload, with a button to cancel it; four others are marked Uploaded, with a check on both steps. The panel has Add files and Clear finished. The toolbar at the bottom shows 9 files at 74%.",
   },
 
   "connect-own-s3-form": {
@@ -234,7 +247,7 @@ export const FIGURES: Record<string, FigureEntry> = {
     sketch: "",
     src: "/figures/app-files.webp",
     frame: true,
-    alt: "A drive called Racoon creek open in the grid view: a folder and four pictures, one of them selected with its menu open (Open, Open in new tab, Download, Rename, Copy, Cut, Delete, Properties). A toolbar at the bottom has Copy, Cut, Paste, Create folder and Upload. The side panel lists All Files, Recent, Media, Recycle Bin and Settings, with the storage used against 3 GB.",
+    alt: "A drive open in the grid view: two folders and 17 files, among them photos and PDFs, each with a lock beside its name. One file is selected, with its menu open (Download, Rename, Copy, Cut, Delete, Properties). A toolbar at the bottom has Copy, Cut, Paste, Create folder and Upload. The side panel lists All Files, Recent, Media, Recycle Bin and Settings, with the storage used against 3 GB.",
   },
 
   "app-my-drives": {
