@@ -40,6 +40,8 @@ services:
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # Set to true when users connect S3 in your own network, or without HTTPS. Keep false on a service open to the public.
       ALLOW_PRIVATE_STORAGE_ENDPOINTS: ${ALLOW_PRIVATE_STORAGE_ENDPOINTS:-false}
+      # The most the operation logs of one owner's drives may take in the database, in bytes; 0: no limit.
+      MAX_LOG_BYTES_PER_OWNER: ${MAX_LOG_BYTES_PER_OWNER:-1073741824}
       # How much each user may store in the S3 presets, in bytes, the same for everybody.
       FREE_PLAN_STORAGE_BYTES: ${FREE_PLAN_STORAGE_BYTES:-3221225472}
       # Optional: a mail server for the invitations to drives. Without SMTP_HOST nothing is mailed.

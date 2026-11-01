@@ -36,6 +36,10 @@ A drive that is **only on your own S3** is not held by the plan, but is held by 
 If an upload is refused because of the **owner's** plan, a person who is not the owner is only told that the owner's storage is full. How much the owner has is not theirs to know.
 </Aside>
 
+### The limit of a drive's log
+
+Every change to a drive adds an entry to its log, which is kept in Owload's database, whichever storage the drive uses. A log can grow to 128 MiB, which is room for about 100,000 files with their previews, and the logs of all your drives to 1 GiB. Past that, writing stops with a message, and reading goes on as usual.
+
 ### What the sizes mean
 
 A drive's size on its card is the **encrypted data** in its main storage, in blocks of 1 MiB. It is a little more than your files add up to, and it keeps the **history** of replaced files. The numbers are counted by the server from the storage, so they are right even after changes made from another device, but they can lag a few minutes.

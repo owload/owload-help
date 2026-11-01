@@ -74,7 +74,7 @@ Owload is built so that the server **cannot** read your files, rather than promi
 ### The keys
 
 1. You type the drive's **password**. It never leaves your device.
-2. A **master key** is made from the password and a random value stored with the drive (a salt), using **PBKDF2-SHA-512 with 100,000 iterations**. It is slow on purpose, to make guessing passwords expensive.
+2. A **master key** is made from the password and a random value stored with the drive (a salt), using **PBKDF2-SHA-512 with 1,000,000 iterations**. It is slow on purpose, to make guessing passwords expensive.
 3. From the master key, **independent keys** are derived with **HKDF-SHA-256**: one for the drive's log, one for each file, and separate ones for the browser's caches. A key is used for one purpose only.
 4. The drive's log is encrypted with **AES-256-GCM**, each entry on its own with a random nonce, so an entry that was changed does not open. Files are encrypted with **AES-256 in counter mode (CTR)**, which lets a video start from any place. The key of a file comes from a random value made in your browser for that upload.
 

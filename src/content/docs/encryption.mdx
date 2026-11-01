@@ -26,7 +26,7 @@ All the cryptography runs in the browser, through the [Web Crypto API](https://d
 
 ```text
  password + keyNonce
-    │  PBKDF2-SHA-512, 100,000 iterations, 256 bits
+    │  PBKDF2-SHA-512, 1,000,000 iterations, 256 bits
     ▼
  K_master
     ├─ HKDF-SHA-256, salt = counterNonce, info = a label
@@ -48,7 +48,7 @@ Both are 16 random bytes, made in the browser when the drive is created and stor
 
 ### The master key
 
-`K_master` is 256 bits of PBKDF2 with HMAC-SHA-512, 100,000 iterations, with the UTF-8 bytes of the password as input and `keyNonce` as salt. It is never sent anywhere. Right after it is made, it becomes a `CryptoKey` for HKDF that cannot be extracted, so nothing can read its bytes back. While a drive is open that key is kept in the browser's IndexedDB. Closing the drive or signing out removes it.
+`K_master` is 256 bits of PBKDF2 with HMAC-SHA-512, 1,000,000 iterations, with the UTF-8 bytes of the password as input and `keyNonce` as salt. It is never sent anywhere. Right after it is made, it becomes a `CryptoKey` for HKDF that cannot be extracted, so nothing can read its bytes back. While a drive is open that key is kept in the browser's IndexedDB. Closing the drive or signing out removes it.
 
 ### Keys derived from it
 
@@ -131,7 +131,7 @@ The fingerprint of an operation is the first 9 bytes of the SHA-256 of its whole
 fingerprint = Base64( SHA-256( operation text )[0..8] )
 ```
 
-Since `previousOperationHash` is part of the text, each fingerprint depends on everything before it. This is the **hash chain**. When a client reads the log, it follows the chain, and an operation that names the wrong predecessor is rejected.
+Since `previousOperationHash` is part of the text, each fingerprint depends on everything before it. This is the **hash chain**. When a client reads the log, it follows the chain, and an operation that names the wrong predecessor is rejected. The drive then shows a warning and writes nothing until you accept it.
 
 ### Identifiers
 
@@ -144,7 +144,7 @@ An object in the tree has no id of its own making:
 
 The state of a drive is what you get by applying the operations in order, from an empty root folder. Each is checked first: the parent folder has to exist, a name has to be valid and free, and an operation cannot move a folder into itself. An operation that fails is marked rejected and skipped, and the ones after it still apply.
 
-To open a drive quickly, a client keeps an encrypted snapshot of the tree and replays only what came after it.
+To open a drive quickly, a client keeps an encrypted snapshot of the tree and replays only what came after it. The snapshot also holds the position and the fingerprint of the last valid operation, and the client reads from that operation: if it is no longer in its place, the log has gone back, and the drive shows the same warning.
 
 ## How an operation is encrypted
 
@@ -305,8 +305,8 @@ Every value below is verified against the client's code by a test, so if the for
 ### The keys
 
 ```text
-K_master  8736985eadc89cfee314d74a15389705a28c73a1e48ba151f1fc29f25442352c
-K_ops     eb4d1b510b0937607cd08b5cd8da2d2f5c2cc7447e2bde98c14f1bcc1ea4190f
+K_master  e049eb7c661bd4dfab3517a9477cc43380f997d0e6291a8568615b9d901e5785
+K_ops     2720f7c8bf798c2bb17778dfd513dce2e535ee8ff5805fda1564b3240d502f70
 ```
 
 ### An operation
@@ -322,8 +322,8 @@ Its fingerprint is `Jj/hl6oAUx1H`. With the nonce `a0a1a2a3a4a5a6a7a8a9aaab`, th
 ```text
 length      00000037
 nonce       a0a1a2a3a4a5a6a7a8a9aaab
-ciphertext  ea21da24c8cbff186159327549fd4a08946c57b2961549ea20486c
-tag         edf1c1e07dc6752c278b4716830f9adb
+ciphertext  5acd537b21d4f5bcf3cd8766ef7c7ddeaa08ed5fbe162f53944077
+tag         41025d7dcb7d9e3b1b61401564cc68f1
 ```
 
 `00000037` is 55: 12 bytes of nonce, 27 of ciphertext and 16 of tag.
@@ -333,8 +333,8 @@ tag         edf1c1e07dc6752c278b4716830f9adb
 The file is the 37 bytes of the text `Hello, Owload! This file is 37 bytes.`, with `fileSalt` being the bytes `20` to `3f`, or `ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=` in Base64.
 
 ```text
-K_file      aaec8300ef2c75a23fa0d90ba7ca52596cef8a0fefdadb59992c70cf54542d7e
-ciphertext  91bb09cfa847677938adc114c338bbf7f820b4626b0901bed1459f57bf5b16c3e44e24d2e8
+K_file      3e0838eded26e71ff55157d55303a5b7d291c7f11bd5f432d9a99787b3f61458
+ciphertext  e830b9c07a1dea0886c713f4c9273e29f128069d8efe17e596ef959e5b6d438df897d17f0e
 ```
 
 The file fits in one block, so the checksum has one step:

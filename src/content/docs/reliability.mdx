@@ -4,7 +4,8 @@ description: "Keep a drive at several unrelated providers, so that the loss of o
 ---
 
 import Figure from '../../components/Figure.astro';
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Code, Steps } from '@astrojs/starlight/components';
+import backupScript from '../../snippets/backup-storage.sh?raw';
 
 Even a very reliable provider can fail you. A region goes down, an account is closed by mistake, a bill goes unpaid, a company changes its terms or leaves your market. If all your files are with that one provider, its problem becomes yours.
 
@@ -118,5 +119,50 @@ Three copies help only if one event cannot take out all three.
 - **Your own mistakes.** The copies hold the same state of the drive, so a deleted file is deleted from all of them. The drive's [history](../using-drives/#properties-and-history) keeps earlier versions of replaced files.
 - **A forgotten password.** Every copy is encrypted with the same drive password, and [nobody can recover it](../security/#how-encryption-works).
 - **The loss of Owload's own service.** Your drive list and access rules are in Owload's database, and Owload's server is what connects to your storages. If you cannot use the web version, your files are still in your buckets, and a [self-hosted](../self-hosting/) Owload can [restore them](../storage/#restore-from-a-storage) with the drive's password.
-- **A compromise of Owload's server.** It holds the access keys to your buckets, kept encrypted, and needs them to write. Whoever controls it could not read your files, but could delete them from every bucket at once. If this matters to you, turn on the versioning of your storage provider: see [Your own S3 and your keys](../threat-model/#your-own-s3-and-your-keys).
+- **A compromise of Owload's server.** It holds the access keys to your buckets, kept encrypted, and needs them to write. Whoever controls it could not read your files, but could delete them from every bucket at once. For this, keep [a backup out of its reach](#a-backup-out-of-the-servers-reach).
 - **Silent damage to a copy.** Owload does not compare the copies with each other. Damage in a secondary storage goes unnoticed until that storage becomes the main one and the file is downloaded. In a rare failure, when a write fails and cannot be undone everywhere, the copies can also differ by that one write.
+
+## A backup out of the server's reach
+
+Owload's server holds the keys to every storage of a drive, so copies protect you from losing a provider, but not from someone who controls that server: it could delete them all at once. For drives you cannot afford to lose, keep one more copy that the server knows nothing about.
+
+The idea is simple: another machine copies your bucket to another account on a schedule, with [rclone](https://rclone.org). The server has no key to that backup, so nothing that happens to it can touch the backup. The backup holds only what the bucket holds, so it is as unreadable as the bucket.
+
+### Set it up
+
+<Steps>
+
+1. **Create a backup bucket** at another provider, or at least in another account, with a key that Owload never sees.
+
+2. **Create a read-only key for your bucket:** the rights to list it and to read its objects, and nothing else.
+
+3. **Choose a machine for the job,** anything but Owload's server: a small virtual server or a computer at home.
+
+4. **Add both to `rclone.conf`** on that machine, as `source` and `backup`, and put your bucket names in the script below.
+
+5. **Run the script on a schedule,** for example once a day from `cron`, and make sure you hear about it when a run fails.
+
+</Steps>
+
+<Code code={backupScript} lang="sh" title="backup-storage.sh" />
+
+Each run updates `current/`, and moves whatever it replaces or deletes to `archive/<date>/`, so an attack does not overwrite your backup: it only pushes the good data into the archive. Archives are kept for 30 days.
+
+`--checksum` matters: Owload's blocks are all the same size, so a block that was changed cannot be told by its size.
+
+### Put it back
+
+1. Stop anything that writes to the bucket, including the compaction worker.
+2. Copy `current/` into an empty bucket.
+3. Copy the archives over it, from the newest to the first one after the damage, each with `rclone copy`. This puts back what those runs replaced or removed.
+4. Connect the bucket with [Restore from a storage](../storage/#restore-from-a-storage). The drives open with their passwords.
+
+A device that saw a drive after the backup was taken says the drive **is older than this device last saw it**, because that is what a restore looks like, and it stops changes until you choose **Use the server's version**.
+
+**Try this once** with a test drive, before you need it.
+
+### What it costs
+
+- **You lose what came after the last run.** With a daily run, that is up to a day of changes.
+- **You pay** for the second bucket, and for reading the first one: the first run reads everything, and the next ones only what changed.
+- **The backup holds the data only.** Who has access to a drive is in Owload's database, so a restored drive has to be shared again.

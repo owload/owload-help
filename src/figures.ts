@@ -167,13 +167,11 @@ export const FIGURES: Record<string, FigureEntry> = {
   },
 
   "self-hosted-topology": {
-    caption: "What a self-hosted Owload consists of. The parts marked 'you provide' are yours to run.",
-    brief:
-      "A server rectangle with your domain on its edge. Inside, left to right: HTTPS reverse proxy (you provide) → client (nginx image) and API (backend image), plus Worker (same image) and PostgreSQL. Outside the rectangle: Keycloak (you provide) and the S3 bucket (you provide), connected with arrows. Mark every box that is Owload's Docker image with the Docker whale or a small 'image' tag, and the rest 'you provide'.",
-    sketch: `  you ─► https://your.domain ─► reverse proxy ─┬─► client (owload-frontend)
-                                                 └─► API (owload-backend) ─┬─► PostgreSQL
-                                                     worker (same image)   ├─► S3 bucket
-                                         Keycloak (sign-in) ◄────────────┘   (you provide)`,
+    caption: "What a self-hosted Owload consists of, and which parts you provide.",
+    brief: "A diagram.",
+    sketch: "",
+    src: "/figures/self-hosted-topology.webp",
+    alt: "A diagram of a self-hosted Owload. You reach it from a browser at https://your.domain. On your server, a reverse proxy that you provide, for HTTPS, passes requests to two Owload Docker images: the client, nginx serving the app, and the API, the server side of Owload. A worker, the same image as the API, runs background jobs. The API and the worker connect to PostgreSQL, the database, to Keycloak for sign-in, and to the S3 bucket with the encrypted files. Keycloak and the S3 bucket are outside your server.",
   },
   "storage-targets-three": {
     caption: "One drive in three unrelated storages: AWS S3 as the main one, Hetzner and Owload's storage as copies.",

@@ -265,7 +265,7 @@ Each module is one resource:
 | Module | Path | What it does |
 |---|---|---|
 | `drives.py` | `/drives` | Create, list, rename and delete drives |
-| `ops.py` | `/ops` | Read the log from a position, and append to it. An append states the length it expects, so that writers cannot overlap |
+| `ops.py` | `/ops` | Read the log from a position, and append to it. An append states the length it expects, so that writers cannot overlap, and the log has limits |
 | `sessions.py` | `/sessions` | Reserve room for an upload and close the session |
 | `data.py` | `/data` | Write, read, list and free encrypted bytes |
 | `access.py` | `/drives/<id>/access` | Visibility, people, roles, invitations, the public link |
@@ -287,6 +287,7 @@ Each module is one resource:
 | [`access.py`](https://github.com/owload/owload-backend/blob/main/app/services/access.py) | Visibility, roles, the public link and its rate limit |
 | `access_summary.py` | Who is on a drive and who read it, for the drive's card |
 | `quota.py`, `stored_bytes.py` | The limits of a plan and of a drive, and counting what is stored |
+| `operation_log.py` | The only place that reads the log, and its limits |
 | `backfill.py`, `compaction.py` | The work of the two workers |
 | `restore.py` | Finding and rebuilding drives from a bucket |
 | [`secrets.py`](https://github.com/owload/owload-backend/blob/main/app/services/secrets.py) | Encrypts the access keys of storages (Fernet), with a key that is not in the database |
@@ -376,7 +377,7 @@ A position in the data area maps directly to a block number and an offset in it,
 
 ```text
  password + key nonce
-      │  PBKDF2-SHA-512, 100,000 iterations
+      │  PBKDF2-SHA-512, 1,000,000 iterations
       ▼
  master key
       │  HKDF-SHA-256, with the counter nonce and a label for each purpose
@@ -392,7 +393,7 @@ A position in the data area maps directly to a block number and an offset in it,
       └── K_file           the contents of one file
 ```
 
-1. The **password** never leaves the device. It is turned into a **master key** with **PBKDF2-SHA-512** (100,000 iterations) and a random salt, the *key nonce*, made on your device and stored with the drive. This is `generateKey` in `enc.ts`.
+1. The **password** never leaves the device. It is turned into a **master key** with **PBKDF2-SHA-512** (1,000,000 iterations) and a random salt, the *key nonce*, made on your device and stored with the drive. This is `generateKey` in `enc.ts`.
 2. From the master key, **independent keys** are derived with **HKDF-SHA-256**, one for each purpose in the diagram. A key serves one purpose only. This is `deriveStreamKey`, called from `drive-client-factory.ts`, and `deriveFileKey`, called from `drive-client.ts`.
 3. The **log** is encrypted with **AES-256-GCM**. Each entry has a random nonce of its own, and the id of the drive is authenticated with it, so a changed entry does not open and an entry does not open in another drive. The log is also a **hash chain**: each entry carries the fingerprint of the previous one, which protects their order.
 4. **Files** are encrypted with **AES-256 in counter mode**. Each file has a key of its own, made from a random salt kept in the log, and the counter runs from the start of the file. Where the server stores the bytes has no part in it, so nothing the server reports can make two files share a keystream. Counter mode lets the client decrypt any range on its own, which is what makes large files and video seeking work.

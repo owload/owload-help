@@ -53,7 +53,7 @@ A threat model says what is being protected, from whom, and how well. This one i
 
 ### A weak password
 
-An attacker who holds the encrypted data can try passwords **offline**, as fast as their hardware allows. The key derivation slows this down (PBKDF2, 100,000 iterations), but it cannot save a short or common password. Use a **long, random** password from a password manager.
+An attacker who holds the encrypted data can try passwords **offline**, as fast as their hardware allows. The key derivation slows this down (PBKDF2, 1,000,000 iterations), and when a drive is created Owload refuses passwords that are under 12 characters or easy to guess, but this is only an estimate, and only length and randomness really protect a password. Use a **long, random** password from a password manager, or a phrase of several unrelated words.
 
 ### Code delivered by a server
 
@@ -90,13 +90,13 @@ A public drive is read by anyone with its **link and password**. The link on its
 
 ### What the checks do not cover
 
-- **There is no signature on each change.** Each entry of the log is authenticated and the log is chained, so a changed entry is detected, but a server could, in theory, **drop the most recent entries** or **replay** an older state of the log without the client noticing.
+- **A new device cannot notice a log that was cut at its end.** Each entry of the log is authenticated and the log is chained, so a changed entry or one taken out of the middle is detected on any device, and the drive shows a warning. A device that has seen the drive also notices when an entry it saw is gone. But a server that was broken into could return a log **without its most recent entries** to a device that has not seen them, including a device that has signed out since. It could hide those changes, not read anything.
 - **Video streaming is not checksummed.** A file is checked after a full download; a video played in pieces is not.
 - **Authorship is not proven.** The log records who made a change from the server's side, but changes are not signed by their author.
 
 ### Your own S3 and your keys
 
-If you use [your own S3](../storage/#connect-your-own-s3), Owload's server holds the access key to your bucket (encrypted). A compromise of that part of Owload could reach your bucket with the key and, because the data is encrypted, could **delete or damage** it, though not read it. Use a dedicated key limited to one bucket, and keep [copies](../storage/#copies-in-more-than-one-storage).
+If you use [your own S3](../storage/#connect-your-own-s3), Owload's server holds the access key to your bucket (encrypted). A compromise of that part of Owload could reach your bucket with the key and, because the data is encrypted, could **delete or damage** it, though not read it. Use a dedicated key limited to one bucket, and keep [copies](../storage/#copies-in-more-than-one-storage). Against this, keep [a backup that the server has no key for](../reliability/#a-backup-out-of-the-servers-reach).
 
 ## Out of scope
 

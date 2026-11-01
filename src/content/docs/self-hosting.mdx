@@ -8,6 +8,7 @@ import { Aside, Code, Steps, Tabs, TabItem } from '@astrojs/starlight/components
 import compose from '../../snippets/docker-compose.yml?raw';
 import envExample from '../../snippets/env.example?raw';
 import caddyfile from '../../snippets/Caddyfile?raw';
+import nginxConf from '../../snippets/nginx.conf?raw';
 import addPreset from '../../snippets/add_preset.py?raw';
 
 Self-hosting runs **the same Owload** as the web version on your own server: the web client, the API and its worker, and the database. Nothing of yours is on Owload's servers. The code is public ([github.com/owload](https://github.com/owload)) and the images are published on Docker Hub, so you do not build anything.
@@ -59,11 +60,18 @@ Self-hosting runs **the same Owload** as the web version on your own server: the
 
 3. **Set up Keycloak** as described in [Sign-in with Keycloak](#sign-in-with-keycloak).
 
-4. **Put HTTPS in front.** The client and the API listen on `127.0.0.1` only (ports 8080 and 8000); a reverse proxy publishes them. With Caddy, which gets and renews the certificates itself:
+4. **Put HTTPS in front.** The client and the API listen on `127.0.0.1` only (ports 8080 and 8000); a reverse proxy publishes them. Caddy gets and renews the certificates itself; with nginx you bring them.
 
-   <Code code={caddyfile} lang="txt" title="Caddyfile" />
+   <Tabs>
+     <TabItem label="Caddy">
+       <Code code={caddyfile} lang="txt" title="Caddyfile" />
+     </TabItem>
+     <TabItem label="nginx">
+       <Code code={nginxConf} lang="nginx" title="nginx.conf" />
+     </TabItem>
+   </Tabs>
 
-   Replace the two names with yours. **Never publish the two ports on all interfaces.**
+   Replace the two names with yours. **Never publish the two ports on all interfaces.** If you use a proxy of your own, follow [What the proxy has to do](#what-the-proxy-has-to-do).
 
 5. **Start it.**
 
@@ -117,6 +125,7 @@ Each of them has no useful default: the installation does not start, or does not
 | `KEYCLOAK_AUDIENCE` | `account` | The audience the API expects in the tokens. |
 | `TRUSTED_PROXY_HOPS` | `1` | How many reverse proxies stand in front of the API (`1` for Caddy). Without the right number the API sees the proxy's address instead of the visitor's. |
 | `ALLOW_PRIVATE_STORAGE_ENDPOINTS` | `false` | Set it to `true` when people connect S3 in your own network, or without HTTPS. Keep it off if strangers can sign up: the server connects to the addresses people type in. Presets are not concerned. |
+| `MAX_LOG_BYTES_PER_OWNER` | 1 GiB | How much the operation logs of one person's drives may take in your database, whichever storage they use. `0` turns the limit off. |
 | `FREE_PLAN_STORAGE_BYTES` | 3 GiB | How much each user may store in **your** storage presets, in bytes. A user's own S3 is not held by it. |
 | `APP_CSP_REPORT_ONLY` | `false` | Set it to `true` on the client to report what the Content-Security-Policy would block, instead of blocking it. For finding the cause of a problem. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | empty | Optional. Without `SMTP_HOST` no invitation is mailed. |
@@ -201,12 +210,52 @@ Update the API and the client **together**: they are released as a pair.
 | What | How |
 |---|---|
 | The database (accounts, drives, access, the list of storages) | `pg_dump`, as above, on a schedule. |
-| The drives' data | In your S3 bucket: use the versioning or replication of your storage provider. |
+| The drives' data | A scheduled copy of your bucket to one the server has no key for: see [A backup out of the server's reach](../reliability/#a-backup-out-of-the-servers-reach). |
 | `BACKEND_SECRET_KEY` and `.env` | A copy **away from the server**. Without the key the stored S3 keys cannot be read. |
 
 **Try the restore once**, on a spare machine, before you need it: a backup that has never been restored is a hope, not a backup.
 
 If you lose the database but the bucket is intact, the drives can be brought back from the bucket (**Restore drives** in the application). Every drive still needs its password to open.
+
+## Security headers
+
+**You do not set these, and your reverse proxy does not repeat them.** The client's container runs an nginx of its own, which adds them to every answer, and the API adds them itself. A proxy in front, nginx or any other, passes them on with no settings at all.
+
+The proxy has other work: HTTPS, the size of requests and the visitor's address. That is the list in [What the proxy has to do](#what-the-proxy-has-to-do).
+
+| Header | Value | What it does |
+|---|---|---|
+| `Content-Security-Policy` | **Client:** a strict policy built at start from `APP_MAIN_BACKEND_URL` and `APP_KEYCLOAK_URL`. **API:** `default-src 'none'; frame-ancestors 'none'`, except on `/docs` and `/redoc`. | Says what a page may run and which addresses it may talk to, and forbids embedding it in another site. |
+| `X-Content-Type-Options` | `nosniff` | Stops the browser from guessing a file's type, so that data is never treated as a script. |
+| `Referrer-Policy` | `no-referrer` | Keeps addresses inside the application from being sent to other sites. |
+| `Strict-Transport-Security` | `max-age=31536000` | Tells the browser to use only HTTPS for this name. A browser accepts it only over HTTPS, so it takes effect through the proxy. |
+
+These rules cover the client and the API. Keycloak and the storage are separate services with settings of their own.
+
+### What the proxy has to do
+
+1. **Serve HTTPS and redirect HTTP to it.** Use TLS 1.2 or newer. `APP_MAIN_BACKEND_URL` and `APP_KEYCLOAK_URL` must be `https://` addresses.
+2. **Do not add the four headers.** With a second `Content-Security-Policy` the browser applies both, and a page has to satisfy each of them. The others arrive twice.
+3. **Do not remove them.** Do not hide them in the proxy (`proxy_hide_header` in nginx), and do not let a CDN replace them.
+4. **Do not change the pages.** Turn off anything that rewrites HTML or scripts on the way, such as minifying, script injection or address obfuscation in a CDN. The policy and the integrity hashes in the page refuse changed content.
+5. **Keep the client's `Cache-Control`.** The front page, `env.js` and the service worker are asked for again every time. A proxy or CDN that keeps them longer serves an old build.
+6. **Allow a request body of at least 12 MiB on the API.** The largest request is an avatar of 10 MiB. nginx refuses anything over 1 MiB by default, so set `client_max_body_size 12m;` in the API's `server` block. Caddy has no limit by default.
+7. **Pass the visitor's address.** Append it to `X-Forwarded-For` and set `TRUSTED_PROXY_HOPS` to the number of proxies. Caddy does this itself; nginx needs `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` in the API's `location`.
+8. **Do not hold back the API's reads.** Reads are streamed, and the API stops reading the storage when the browser has gone. In nginx, set `proxy_buffering off;` in the API's `location`.
+
+### Check it
+
+Run this for the client and for the API. **Each of the four headers must appear exactly once.**
+
+```sh
+curl -s -D - -o /dev/null https://app.example.com/ | grep -iE 'content-security-policy|x-content-type-options|referrer-policy|strict-transport-security'
+curl -s -D - -o /dev/null https://api.example.com/healthz | grep -iE 'content-security-policy|x-content-type-options|referrer-policy|strict-transport-security'
+```
+
+### When something changes
+
+- **The address of the API or of Keycloak.** The client writes its policy when it starts, so recreate the container after changing the settings: `docker compose up -d`.
+- **A page is blocked and you do not know why.** Set `APP_CSP_REPORT_ONLY=true` on the client: the browser console then lists what the policy would block, without blocking it. Turn it back off when you have found the cause, because while it is on, the policy protects nothing.
 
 ## Keep it safe
 
@@ -222,5 +271,8 @@ If you lose the database but the bucket is intact, the drives can be brought bac
 | Sign-in fails right after the redirect | `KEYCLOAK_ISSUER` is not exactly the `iss` of the tokens; the client's redirect URI does not include the app address. |
 | The browser says a request was blocked (CORS) | `CORS_ALLOW_ORIGINS` is not the JSON list with the exact address of the client, scheme included. |
 | Invitations are not mailed | `SMTP_HOST` is empty or the mail server refuses the connection; check `docker compose logs backend`. |
-| Everyone appears to come from one address | `TRUSTED_PROXY_HOPS` does not match the number of proxies. |
+| Everyone appears to come from one address | `TRUSTED_PROXY_HOPS` does not match the number of proxies, or the proxy does not pass `X-Forwarded-For`. |
+| A request fails with `413` from the proxy | The proxy's body limit is under 12 MiB (`client_max_body_size` in nginx). |
+| The page is blank, and the console mentions the Content Security Policy or an integrity hash | The proxy or a CDN changes the pages or the headers, or a page was kept from an older build. See [What the proxy has to do](#what-the-proxy-has-to-do). |
+| A security header appears twice | The proxy adds it too. Remove it from the proxy. |
 | The API does not start | `docker compose logs backend`: a missing or wrong value in `.env`, or the database not ready yet. |
